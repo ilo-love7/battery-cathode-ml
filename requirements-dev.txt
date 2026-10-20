@@ -1,0 +1,47 @@
+# Core dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0
+hypothesis>=6.0.0
+
+# Code quality
+black>=23.0.0
+flake8>=6.0.0
+flake8-bugbear>=23.0.0
+flake8-comprehensions>=3.0.0
+isort>=5.0.0
+mypy>=1.0.0
+pylint>=3.0.0
+
+# Type stubs
+types-pytz>=2023.0.0
+types-requests>=2.0.0
+
+# Pre-commit hooks
+pre-commit>=3.0.0
+
+# Security scanning
+bandit>=1.7.0
+safety>=2.0.0
+
+# Documentation
+sphinx>=7.0.0
+sphinx-rtd-theme>=2.0.0
+sphinx-autodoc-typehints>=1.0.0
+myst-parser>=2.0.0
+
+# Development tools
+ipython>=8.0.0
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+
+# Code formatting for notebooks
+nbstripout>=0.6.0
+
+# Build tools
+build>=1.0.0
+twine>=4.0.0
+wheel>=0.40.0
