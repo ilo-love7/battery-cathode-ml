@@ -15,6 +15,8 @@
 电负性缺失（稀有气体等）记 NaN：HGB 原生支持，RF 流水线用中位数插补。
 """
 
+from __future__ import annotations
+
 import math
 import sys
 from pathlib import Path
