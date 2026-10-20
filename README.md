@@ -4,9 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue)](https://www.python.org/)
-[![CI/CD](https://github.com/YOUR_USERNAME/battery-cathode-ml/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/YOUR_USERNAME/battery-cathode-ml/actions)
+[![CI/CD](https://github.com/ilo-love7/battery-cathode-ml/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/ilo-love7/battery-cathode-ml/actions)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/YOUR_USERNAME/battery-cathode-ml/issues)
+[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/ilo-love7/battery-cathode-ml/issues)
 
 **🌟 AI for Science | Materials Informatics | Battery Research**
 
@@ -34,7 +34,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/battery-cathode-ml.git
+git clone https://github.com/ilo-love7/battery-cathode-ml.git
 cd battery-cathode-ml
 
 # 安装依赖
@@ -102,7 +102,7 @@ jupyter lab examples/
 pip install battery-cathode-ml
 
 # 或从源码
-git clone https://github.com/YOUR_USERNAME/battery-cathode-ml.git
+git clone https://github.com/ilo-love7/battery-cathode-ml.git
 cd battery-cathode-ml
 pip install -e .
 ```
@@ -180,7 +180,7 @@ open examples/01_getting_started.ipynb
 ## 📚 文档
 
 - **[完整教程](examples/)** - Jupyter Notebook 示例
-- **[API 文档](https://YOUR_USERNAME.github.io/battery-cathode-ml/)** - 自动化生成的 API 文档
+- **[API 文档](https://ilo-love7.github.io/battery-cathode-ml/)** - 自动化生成的 API 文档
 - **[贡献指南](CONTRIBUTING.md)** - 如何参与项目开发
 - **[代码规范](.github/CODE_STYLE.md)** - 开发风格指南
 - **[常见问题](docs/FAQ.md)** - 常见问题解答
@@ -218,8 +218,8 @@ battery-cathode-ml/
 我们欢迎各种形式的贡献！请查看：
 
 - 📝 **[贡献指南](CONTRIBUTING.md)** - 提交 PR 的详细步骤
-- 🐛 **[报告 Bug](https://github.com/YOUR_USERNAME/battery-cathode-ml/issues/new?template=bug_report.md)** - 发现问题？告诉我们！
-- ✨ **[请求功能](https://github.com/YOUR_USERNAME/battery-cathode-ml/issues/new?template=feature_request.md)** - 有新想法？提出来！
+- 🐛 **[报告 Bug](https://github.com/ilo-love7/battery-cathode-ml/issues/new?template=bug_report.md)** - 发现问题？告诉我们！
+- ✨ **[请求功能](https://github.com/ilo-love7/battery-cathode-ml/issues/new?template=feature_request.md)** - 有新想法？提出来！
 
 ### 快速开始贡献
 
@@ -248,7 +248,7 @@ git push origin feature/AmazingFeature
   author = {Battery Cathode ML Contributors},
   title = {Battery Cathode ML: Machine Learning Toolkit for Battery Cathode Material Property Prediction},
   year = {2026},
-  url = {https://github.com/YOUR_USERNAME/battery-cathode-ml},
+  url = {https://github.com/ilo-love7/battery-cathode-ml},
   version = {1.0.0}
 }
 ```
@@ -274,15 +274,15 @@ git push origin feature/AmazingFeature
 
 ## 📬 联系我们
 
-- 💬 **问题反馈**: [GitHub Issues](https://github.com/YOUR_USERNAME/battery-cathode-ml/issues)
-- 📧 **邮箱**: your.email@example.com
-- 🐦 **Twitter**: @yourhandle
+- 💬 **问题反馈**: [GitHub Issues](https://github.com/ilo-love7/battery-cathode-ml/issues)
+- 📧 **邮箱**: 17695324ilo@gmail\.com
+- 🐦 **Twitter**: @ilo-love7
 
 ---
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/battery-cathode-ml&type=Date)](https://star-history.com/#YOUR_USERNAME/battery-cathode-ml&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=ilo-love7/battery-cathode-ml&type=Date)](https://star-history.com/#ilo-love7/battery-cathode-ml&Date)
 
 ---
 

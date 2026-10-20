@@ -62,7 +62,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/battery-cathode-ml.git
+   git clone https://github.com/ilo-love7/battery-cathode-ml.git
    cd battery-cathode-ml
    ```
 
