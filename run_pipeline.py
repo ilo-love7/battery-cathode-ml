@@ -61,8 +61,8 @@ def main():
     # 步骤 1: 数据准备
     if not args.skip_data:
         if not run_script("prepare_data.py", "步骤 1: 数据清洗与预处理"):
-            success = False
-            break
+            print("\n数据准备失败，终止流程（后续步骤依赖处理后的数据）。")
+            return 1
     else:
         print("\n⊘ 跳过数据准备步骤")
     

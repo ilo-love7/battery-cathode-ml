@@ -275,7 +275,7 @@ git push origin feature/AmazingFeature
 ## 📬 联系我们
 
 - 💬 **问题反馈**: [GitHub Issues](https://github.com/ilo-love7/battery-cathode-ml/issues)
-- 📧 **邮箱**: 17695324ilo@gmail\.com
+- 📧 **邮箱**: 17695324ilo@gmail.com
 - 🐦 **Twitter**: @ilo-love7
 
 ---
