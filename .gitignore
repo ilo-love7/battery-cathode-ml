@@ -89,3 +89,9 @@ ipython_config.py
 *.json.backup
 .mp_api_key
 .env.local
+
+# CGCNN 导出目录 / smoke 产物
+cgcnn_data/
+pred.json
+coverage.xml
+results/training_universe.json

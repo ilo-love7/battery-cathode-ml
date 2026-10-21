@@ -77,13 +77,23 @@ def featurize_one(composition: str, element_list=None) -> dict | None:
     for p in PROPS:
         vals = np.array([ELEMENTS[el][p] for el in counts], dtype=float)
         w = np.array([xs[el] for el in counts], dtype=float)
-        mean = float(np.nansum(w * vals))
-        var = float(np.nansum(w * (vals - mean) ** 2))
+        # 只在有值的元素上重新归一化权重：否则含缺失属性（如稀有气体电负性
+        # 记 NaN）的成分会被 nansum 稀释，均值系统性偏低（LiHeO2 曾偏差 25%）。
+        ok = ~np.isnan(vals)
+        if ok.any() and w[ok].sum() > 0:
+            v_ok = vals[ok]
+            w_ok = w[ok] / w[ok].sum()
+            mean = float(np.sum(w_ok * v_ok))
+            var = float(np.sum(w_ok * (v_ok - mean) ** 2))
+            vmax, vmin = float(v_ok.max()), float(v_ok.min())
+            std = math.sqrt(max(var, 0.0))
+        else:
+            mean = std = vmax = vmin = float("nan")
         feats[f"{p}_mean"] = mean
-        feats[f"{p}_std"] = math.sqrt(max(var, 0.0))
-        feats[f"{p}_max"] = float(np.nanmax(vals))
-        feats[f"{p}_min"] = float(np.nanmin(vals))
-        feats[f"{p}_range"] = feats[f"{p}_max"] - feats[f"{p}_min"]
+        feats[f"{p}_std"] = std
+        feats[f"{p}_max"] = vmax
+        feats[f"{p}_min"] = vmin
+        feats[f"{p}_range"] = vmax - vmin
 
     feats["n_elements"] = float(len(counts))
     feats["atoms_per_fu"] = total

@@ -30,9 +30,15 @@ from models import evaluate_dataset, save_pickle  # noqa: E402
 OUT = ROOT / "results"
 
 
-def main():
+def main() -> int:
+    data_path = ROOT / "data/processed/perovskites_ef.csv"
+    if not data_path.exists():
+        print("[ERROR] 缺少 data/processed/perovskites_ef.csv")
+        print("        请先运行: python src/download_data.py && python src/prepare_data.py")
+        return 2
+
     OUT.mkdir(exist_ok=True)
-    df = pd.read_csv(ROOT / "data/processed/perovskites_ef.csv")
+    df = pd.read_csv(data_path)
     print(f"钙钛矿形成能样本数: {len(df)}")
 
     element_list = build_universe(df["formula_canon"].tolist())
@@ -54,7 +60,8 @@ def main():
     save_pickle({"models": res["models"], "feature_names": feat_names,
                  "element_list": element_list}, OUT / "models_ef.pkl")
     print("形成能模型完成 -> results/models_ef.pkl")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

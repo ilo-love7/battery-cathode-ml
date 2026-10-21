@@ -13,6 +13,7 @@
 候选应降权解读（表中单独标记）。
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -35,15 +36,31 @@ W_STAB, W_COND, W_CAP = 0.40, 0.30, 0.30
 
 
 def training_element_universe():
-    """两个训练集元素宇宙的并集。"""
+    """两个训练集元素宇宙的并集（结果缓存到 results/，避免每次重解析 2 万条化学式）。"""
+    cache = OUT / "training_universe.json"
+    if cache.exists():
+        try:
+            return set(json.loads(cache.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+
     universe = set()
     for csv in ["data/processed/expt_gap.csv", "data/processed/perovskites_ef.csv"]:
-        df = pd.read_csv(ROOT / csv)
+        path = ROOT / csv
+        if not path.exists():
+            continue
+        df = pd.read_csv(path)
         for f in df["formula_canon"]:
             try:
                 universe |= set(parse_formula(f).keys())
             except ValueError:
                 pass
+
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(sorted(universe), ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
     return universe
 
 
@@ -57,8 +74,16 @@ def predict_with_bundle(bundle, comps):
     return 0.5 * (rf + hgb), np.abs(rf - hgb) / 2.0
 
 
-def main():
+def main() -> int:
     OUT.mkdir(exist_ok=True)
+
+    missing = [p.name for p in (OUT / "models_gap.pkl", OUT / "models_ef.pkl") if not p.exists()]
+    if missing:
+        print(f"[ERROR] 缺少模型文件: {missing}")
+        print("        请先训练: python src/train_gap.py && python src/train_ef.py")
+        print("        （需要先执行 download_data.py + prepare_data.py 准备数据）")
+        return 2
+
     cand = pd.read_csv(ROOT / "data/cathode_candidates.csv", encoding="utf-8-sig")
     print(f"候选成分: {len(cand)} 条")
 
@@ -140,7 +165,8 @@ def main():
     fig.savefig(OUT / "cathode_ranking.png")
     plt.close(fig)
     print("排名图 -> results/cathode_ranking.png")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

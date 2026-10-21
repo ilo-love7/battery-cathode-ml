@@ -104,6 +104,11 @@ jobs:
       - name: Train voltage model
         run: python src/train_voltage.py
 
+      - name: CLI prediction smoke test
+        run: |
+          python src/predictor.py --formulas "LiFePO4,LiCoO2" --json > pred.json
+          python -c "import json; d=json.load(open('pred.json')); assert len(d)==2, d; v=[x['Voltage_ensemble_V'] for x in d]; assert v[0]!=v[1], ('不同化学式预测相同，疑似特征列错位', v); print('predictions:', v)"
+
       - name: Verify artifacts
         run: |
           test -f results/metrics_voltage.json

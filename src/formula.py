@@ -90,7 +90,11 @@ def parse_formula(formula: str) -> dict:
     s = formula.strip()
     s = s.replace("[", "(").replace("]", ")").replace("{", "(").replace("}", ")")
     s = re.sub(r"\s+", "", s)
-    s = re.sub(r"(\+|-)\d*$", "", s)                # 去掉电荷后缀，如 Fe3+ / O2-
+    # 去掉电荷后缀（整体视为离子电荷，不当作化学计量数）：
+    #   Fe3+ -> Fe     （Fe³⁺，1 个 Fe 原子）
+    #   O2-  -> O      （O²⁻，1 个 O 原子）
+    #   SO4^2- -> SO4
+    s = re.sub(r"\^?\d*[+-]\d*$", "", s)
     if not s:
         raise ValueError("空化学式")
     counts, i = _parse(s, 0)

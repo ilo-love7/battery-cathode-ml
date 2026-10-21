@@ -64,7 +64,10 @@ class TestFormulaParsing:
         assert result == {"Li": 1.0, "Fe": 1.0, "P": 1.0, "O": 4.0}
 
     def test_charge_notation(self):
-        """Test handling of charge notation."""
-        # Should strip charge suffixes
-        result = parse_formula("Fe3+")
-        assert result == {"Fe": 3.0}
+        """电荷后缀是离子电荷，不能被当成化学计量数。"""
+        # Fe³⁺ -> 1 个 Fe（旧实现会误判为 Fe3）
+        assert parse_formula("Fe3+") == {"Fe": 1.0}
+        # O²⁻ -> 1 个 O（旧实现会误判为 O2）
+        assert parse_formula("O2-") == {"O": 1.0}
+        # 带 ^ 记法
+        assert parse_formula("SO4^2-") == {"S": 1.0, "O": 4.0}

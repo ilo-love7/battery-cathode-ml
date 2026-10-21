@@ -92,6 +92,26 @@ class TestFeatureExtraction:
         assert "Li" in universe
         assert "O" in universe
 
+    def test_missing_property_renormalizes_weights(self):
+        """缺失属性（稀有气体电负性为 None）不能稀释加权均值。
+
+        回归：旧实现用 nansum(w*vals)，LiHeO2 的 EN_mean 被拉低到 1.97，
+        正确值（只对 Li/O 重新归一化权重）是 2.62。
+        """
+        features = featurize_one("LiHeO2")
+        # w: Li=0.25, O=0.5 (He 权重 0.25 被剔除) -> (0.25*0.98+0.5*3.44)/0.75
+        assert features["EN_mean"] == pytest.approx(2.62, abs=0.01)
+        # max/min/range 不受缺失值影响
+        assert features["EN_max"] == pytest.approx(3.44)
+        assert features["EN_min"] == pytest.approx(0.98)
+        assert features["EN_range"] == pytest.approx(3.44 - 0.98)
+
+    def test_no_nan_weights_leak_into_stats(self):
+        """含 NaN 属性的成分，其统计量不应是 NaN（除非该属性全缺）。"""
+        features = featurize_one("Ba5(AsO4)3(OH,F)")
+        for name in ("EN_mean", "EN_std", "radius_mean", "Z_mean"):
+            assert features[name] == features[name]  # not NaN
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

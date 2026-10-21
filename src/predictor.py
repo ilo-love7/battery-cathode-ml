@@ -1,333 +1,353 @@
 # -*- coding: utf-8 -*-
 """电池正极材料预测工具。
 
-支持使用训练好的模型对新化学式进行预测：
-- 带隙预测 (Egap)
-- 形成能预测 (Eform)
-- 平均电压预测 (Voltage)
+支持用训练好的模型束对新化学式进行预测：
+- 带隙预测 (Egap, eV)
+- 形成能预测 (Eform, eV/5 原子胞)
+- 平均电压预测 (Voltage, V)
 
-示例:
+用法::
+
     from predictor import predict_material_properties
-    results = predict_material_properties(['LiFePO4', 'LiCoO2', 'LiMn2O4'])
-    print(results)
+    df = predict_material_properties(["LiFePO4", "LiCoO2"])
+
+命令行::
+
+    python src/predictor.py --formulas "LiFePO4,LiCoO2,LiMn2O4"
+    python src/predictor.py --top 10 --min-voltage 3.0 --max-voltage 5.0
+    python src/predictor.py --formulas "LiFePO4" --json
+
+⚠️ 特征列顺序：
+    训练集 X 的列顺序由 ``bundle["feature_names"]`` 记录（带隙/形成能模型是
+    「统计特征 → 元素分数」，电压模型是「元素分数 → 统计特征」）。预测时必须
+    按记录的列名构造 DataFrame 再 ``predict``，让 sklearn 用列名对齐；
+    绝不能 ``to_numpy()``——那样列错位不会报错，只会静默返回错误数值。
 """
 
+from __future__ import annotations
+
+import argparse
+import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+_SRC = str(ROOT / "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
-from features import featurize_one
-from formula import parse_formula
-from models import load_pickle
+from features import ELEMENTS, featurize_one  # noqa: E402
+from formula import parse_formula  # noqa: E402
+from models import load_pickle  # noqa: E402
+
+MODEL_FILES = {
+    "gap": "models_gap.pkl",
+    "ef": "models_ef.pkl",
+    "voltage": "models_voltage.pkl",
+}
 
 
-def load_models():
-    """加载所有训练好的模型 bundle。"""
-    models = {}
-    
-    # 带隙模型
-    gap_pkl = ROOT / "results" / "models_gap.pkl"
-    if gap_pkl.exists():
-        models['gap'] = load_pickle(str(gap_pkl))
-    
-    # 形成能模型
-    ef_pkl = ROOT / "results" / "models_ef.pkl"
-    if ef_pkl.exists():
-        models['ef'] = load_pickle(str(ef_pkl))
-    
-    # 电压模型
-    voltage_pkl = ROOT / "results" / "models_voltage.pkl"
-    if voltage_pkl.exists():
-        models['voltage'] = load_pickle(str(voltage_pkl))
-    
+# --------------------------------------------------------------------------- #
+# 模型加载
+# --------------------------------------------------------------------------- #
+def load_models(results_dir: Union[str, Path, None] = None) -> Dict[str, dict]:
+    """加载 results/ 下所有已训练的模型束（缺失的自动跳过）。"""
+    out_dir = Path(results_dir) if results_dir else ROOT / "results"
+    models: Dict[str, dict] = {}
+    for key, fname in MODEL_FILES.items():
+        path = out_dir / fname
+        if path.exists():
+            models[key] = load_pickle(str(path))
     return models
 
 
-def predict_single(formula: str, models: Dict) -> Dict:
-    """预测单个材料的性质。"""
-    result = {"formula": formula}
-    
+# --------------------------------------------------------------------------- #
+# 特征矩阵构造（唯一的预测入口，保证列顺序正确）
+# --------------------------------------------------------------------------- #
+def _feature_frame(formula: str, bundle: dict) -> Optional[pd.DataFrame]:
+    """按 ``bundle['feature_names']`` 的列名与顺序构造单样本特征矩阵。
+
+    返回 None 表示该化学式无法特征化（含未知元素/解析失败）。
+    列名缺失时抛错——宁可失败也不静默错位。
+    """
+    names = bundle.get("feature_names") or []
+    if not names:
+        raise ValueError("模型束缺少 feature_names，无法保证特征列顺序；请用最新脚本重新训练")
+
+    feats = featurize_one(formula, element_list=bundle.get("element_list"))
+    if feats is None:
+        return None
+
+    missing = [n for n in names if n not in feats]
+    if missing:
+        raise ValueError(f"模型需要的特征列缺失: {missing[:5]} (共 {len(missing)} 个)")
+    return pd.DataFrame([{n: feats[n] for n in names}], columns=names)
+
+
+def _predict_ensemble(bundle: dict, formula: str) -> Optional[dict]:
+    """返回 {rf, hgb, ens, spread}；无法特征化时返回 None。"""
+    X = _feature_frame(formula, bundle)
+    if X is None:
+        return None
+    rf = float(bundle["models"]["RF"].predict(X)[0])
+    hgb = float(bundle["models"]["HGB"].predict(X)[0])
+    return {"rf": rf, "hgb": hgb, "ens": 0.5 * (rf + hgb), "spread": abs(rf - hgb) / 2.0}
+
+
+# --------------------------------------------------------------------------- #
+# 单材料预测
+# --------------------------------------------------------------------------- #
+def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
+    """预测单个材料的性质，返回扁平字典。"""
+    result: Dict = {"formula": formula}
+
     try:
         counts = parse_formula(formula)
-        result["parsed"] = counts
-        result["n_elements"] = len(counts)
-        result["total_atoms"] = sum(counts.values())
-        
-        # 计算摩尔质量
-        from features import ELEMENTS
-        molar_mass = sum(counts[el] * ELEMENTS[el]["mass"] for el in counts)
-        result["molar_mass_g_mol"] = round(molar_mass, 3)
-        
-    except Exception as e:
-        result["parse_error"] = str(e)
+    except Exception as exc:  # noqa: BLE001 - 用户输入不可信
+        result["parse_error"] = str(exc)
         return result
-    
-    # Gap prediction
-    if 'gap' in models:
-        bundle = models['gap']
-        element_list = bundle.get("element_list", [])
-        
-        frac_feats = featurize_one(formula, element_list=element_list)
-        stat_feats = featurize_one(formula, element_list=None)
-        
-        if frac_feats is None or stat_feats is None:
+
+    result["parsed"] = counts
+    result["n_elements"] = len(counts)
+    result["total_atoms"] = sum(counts.values())
+    unknown = [el for el in counts if el not in ELEMENTS]
+    if unknown:
+        result["unknown_elements"] = unknown
+        return result
+
+    molar_mass = sum(counts[el] * ELEMENTS[el]["mass"] for el in counts)
+    result["molar_mass_g_mol"] = round(molar_mass, 3)
+
+    # ---- 带隙 ----
+    if "gap" in models:
+        pred = _predict_ensemble(models["gap"], formula)
+        if pred is None:
             result["gap_error"] = "Feature extraction failed"
         else:
-            # Create DataFrame with all expected columns
-            frac_feats = featurize_one(formula, element_list=element_list)
-            stat_feats = featurize_one(formula, element_list=None)
-            
-            if frac_feats is None or stat_feats is None:
-                result["gap_error"] = "Feature extraction failed"
-                return result
-            
-            frac_cols = [f"frac_{el}" for el in element_list]
-            stat_cols = [k for k in stat_feats.keys() if k.startswith(('Z_', 'mass_', 'EN_', 'radius_', 'group_', 'period_', 'n_elements', 'atoms_per_fu', 'molar_mass'))]
-            
-            X_frac = pd.DataFrame([frac_feats], columns=frac_cols)
-            X_stat = pd.DataFrame([stat_feats], columns=stat_cols)
-            X = pd.concat([X_frac, X_stat], axis=1)
-            
-            import numpy as np
-            rf_pred = bundle["models"]["RF"].predict(X.to_numpy())[0]
-            hgb_pred = bundle["models"]["HGB"].predict(X.to_numpy())[0]
-            ens_pred = 0.5 * (rf_pred + hgb_pred)
-            spread = abs(rf_pred - hgb_pred) / 2
-            
-            result["Egap_RF_eV"] = round(rf_pred, 4)
-            result["Egap_HGB_eV"] = round(hgb_pred, 4)
-            result["Egap_ensemble_eV"] = round(ens_pred, 4)
-            result["Egap_spread"] = round(spread, 4)
-            
-            # Conductivity assessment
-            if ens_pred > 3.0:
+            result.update({
+                "Egap_RF_eV": round(pred["rf"], 4),
+                "Egap_HGB_eV": round(pred["hgb"], 4),
+                "Egap_ensemble_eV": round(pred["ens"], 4),
+                "Egap_spread": round(pred["spread"], 4),
+            })
+            if pred["ens"] > 3.0:
                 result["conductivity"] = "Insulator (>3 eV)"
-            elif ens_pred > 1.0:
+            elif pred["ens"] > 1.0:
                 result["conductivity"] = "Semiconductor (1-3 eV)"
             else:
                 result["conductivity"] = "Narrow-gap/Metal (<1 eV)"
-    
-    # Formation energy prediction
-    if 'ef' in models:
-        bundle = models['ef']
-        element_list = bundle.get("element_list", [])
-        
-        frac_feats = featurize_one(formula, element_list=element_list)
-        stat_feats = featurize_one(formula, element_list=None)
-        
-        if frac_feats is None or stat_feats is None:
+
+    # ---- 形成能 ----
+    if "ef" in models:
+        pred = _predict_ensemble(models["ef"], formula)
+        if pred is None:
             result["ef_error"] = "Feature extraction failed"
         else:
-            frac_cols = [f"frac_{el}" for el in element_list]
-            stat_cols = [k for k in stat_feats.keys() if k.startswith(('Z_', 'mass_', 'EN_', 'radius_', 'group_', 'period_', 'n_elements', 'atoms_per_fu', 'molar_mass'))]
-            
-            X_frac = pd.DataFrame([frac_feats], columns=frac_cols)
-            X_stat = pd.DataFrame([stat_feats], columns=stat_cols)
-            X = pd.concat([X_frac, X_stat], axis=1)
-            
-            import numpy as np
-            rf_pred = bundle["models"]["RF"].predict(X.to_numpy())[0]
-            hgb_pred = bundle["models"]["HGB"].predict(X.to_numpy())[0]
-            ens_pred = 0.5 * (rf_pred + hgb_pred)
-            
-            result["Eform_RF_eV_fu"] = round(rf_pred, 4)
-            result["Eform_HGB_eV_fu"] = round(hgb_pred, 4)
-            result["Eform_ensemble_eV_fu"] = round(ens_pred, 4)
-            
-            # Per atom formation energy
             atoms = float(sum(counts.values()))
-            result["Eform_per_atom_eV"] = round(ens_pred / atoms, 4)
-            
-            # Stability assessment
-            if ens_pred < -2.0:
+            result.update({
+                "Eform_RF_eV_fu": round(pred["rf"], 4),
+                "Eform_HGB_eV_fu": round(pred["hgb"], 4),
+                "Eform_ensemble_eV_fu": round(pred["ens"], 4),
+                "Eform_spread": round(pred["spread"], 4),
+                "Eform_per_atom_eV": round(pred["ens"] / atoms, 4) if atoms else None,
+            })
+            if pred["ens"] < -2.0:
                 result["stability"] = "Highly stable (<-2 eV/fu)"
-            elif ens_pred < 0:
+            elif pred["ens"] < 0:
                 result["stability"] = "Stable (-2~0 eV/fu)"
             else:
                 result["stability"] = "Unstable (>0 eV/fu)"
-    
-    # Voltage prediction
-    if 'voltage' in models:
-        bundle = models['voltage']
-        element_list = bundle.get("element_list", [])
-        
-        frac_feats = featurize_one(formula, element_list=element_list)
-        stat_feats = featurize_one(formula, element_list=None)
-        
-        if frac_feats is None or stat_feats is None:
+
+    # ---- 平均电压 ----
+    if "voltage" in models:
+        pred = _predict_ensemble(models["voltage"], formula)
+        if pred is None:
             result["voltage_error"] = "Feature extraction failed"
         else:
-            frac_cols = [f"frac_{el}" for el in element_list]
-            stat_cols = [k for k in stat_feats.keys() if k.startswith(('Z_', 'mass_', 'EN_', 'radius_', 'group_', 'period_', 'n_elements', 'atoms_per_fu', 'molar_mass'))]
-            
-            X_frac = pd.DataFrame([frac_feats], columns=frac_cols)
-            X_stat = pd.DataFrame([stat_feats], columns=stat_cols)
-            X = pd.concat([X_frac, X_stat], axis=1)
-            
-            import numpy as np
-            rf_pred = bundle["models"]["RF"].predict(X.to_numpy())[0]
-            hgb_pred = bundle["models"]["HGB"].predict(X.to_numpy())[0]
-            ens_pred = 0.5 * (rf_pred + hgb_pred)
-            
-            result["Voltage_RF_V"] = round(rf_pred, 3)
-            result["Voltage_HGB_V"] = round(hgb_pred, 3)
-            result["Voltage_ensemble_V"] = round(ens_pred, 3)
-            
-            # Voltage level assessment
-            if ens_pred > 4.0:
+            result.update({
+                "Voltage_RF_V": round(pred["rf"], 3),
+                "Voltage_HGB_V": round(pred["hgb"], 3),
+                "Voltage_ensemble_V": round(pred["ens"], 3),
+            })
+            if pred["ens"] > 4.0:
                 result["voltage_level"] = "High voltage (>4 V)"
-            elif ens_pred > 3.5:
+            elif pred["ens"] > 3.5:
                 result["voltage_level"] = "Medium voltage (3.5-4 V)"
             else:
                 result["voltage_level"] = "Low voltage (<3.5 V)"
-    
+
     return result
 
 
-def predict_material_properties(formulas: List[str], 
-                                 include_details: bool = False) -> Union[pd.DataFrame, List[Dict]]:
+# --------------------------------------------------------------------------- #
+# 批量预测
+# --------------------------------------------------------------------------- #
+APPROX_NOTE = (
+    "[!] 成分级近似：带隙/形成能模型训练于 matbench 公开数据（实验带隙、"
+    "钙钛矿 DFT 形成能），对锂电池体系属外推；电压模型基于合成数据，仅演示流程。"
+)
+
+
+def predict_material_properties(formulas: Union[str, List[str]],
+                                include_details: bool = False,
+                                models: Optional[Dict[str, dict]] = None,
+                                verbose: bool = True) -> Union[pd.DataFrame, List[Dict]]:
     """批量预测材料性质。
-    
+
     Args:
-        formulas: 化学式列表，如 ['LiFePO4', 'LiCoO2']
-        include_details: 是否返回详细字典（默认返回 DataFrame）
-    
-    Returns:
-        包含预测结果的 DataFrame 或字典列表
+        formulas: 化学式或化学式列表。
+        include_details: True 返回完整字典列表，False 返回精简 DataFrame。
+        models: 预加载的模型束（避免重复 unpickle 数百 MB）。
+        verbose: 是否打印提示信息。
     """
-    print(f"正在预测 {len(formulas)} 个材料的性质...")
-    
-    models = load_models()
-    missing_models = [k for k in ['gap', 'ef', 'voltage'] if k not in models]
-    if missing_models:
-        print(f"警告：以下模型未找到，将跳过对应预测：{missing_models}")
-    
-    results = []
-    for formula in formulas:
-        pred = predict_single(formula, models)
-        results.append(pred)
-    
+    if isinstance(formulas, str):
+        formulas = [formulas]
+    formulas = [f.strip() for f in formulas if f and f.strip()]
+    if not formulas:
+        raise ValueError("formulas 不能为空")
+
+    if models is None:
+        models = load_models()
+    missing = [k for k in ("gap", "ef", "voltage") if k not in models]
+    if verbose:
+        print(f"正在预测 {len(formulas)} 个材料 ...")
+        if missing:
+            print(f"警告：未找到模型 {missing}，对应性质将被跳过（先运行训练脚本）")
+        if len(missing) or "voltage" in models:
+            print(APPROX_NOTE)
+
+    results = [predict_single(f, models) for f in formulas]
     if include_details:
         return results
-    
-    # 转换为 DataFrame
+
     df = pd.DataFrame(results)
-    
-    # 选择主要列
     main_cols = ["formula"]
-    for col in ["Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Voltage_ensemble_V"]:
+    for col in ("Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Voltage_ensemble_V",
+                "conductivity", "stability", "voltage_level"):
         if col in df.columns:
             main_cols.append(col)
-    
-    for col in ["conductivity", "stability", "voltage_level"]:
+    for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV"):
         if col in df.columns:
             main_cols.append(col)
-    
-    # 添加可用列
-    available_cols = [c for c in df.columns if c not in main_cols and not c.startswith('Egap_') and not c.startswith('Eform_') and not c.startswith('Voltage_')]
-    main_cols.extend(available_cols[:5])  # 最多添加 5 个额外列
-    
     return df[[c for c in main_cols if c in df.columns]]
 
 
-def screen_candidates(candidates_file: str = None, 
+# --------------------------------------------------------------------------- #
+# 候选筛选
+# --------------------------------------------------------------------------- #
+W_STAB, W_COND, W_CAP = 0.40, 0.30, 0.30
+
+
+def screen_candidates(candidates_file: Union[str, Path, None] = None,
                       n_top: int = 10,
                       min_voltage: float = 3.0,
-                      max_voltage: float = 5.0) -> pd.DataFrame:
-    """筛选候选正极材料。
-    
-    Args:
-        candidates_file: 候选材料 CSV 文件路径（默认使用项目自带的 cathode_candidates.csv）
-        n_top: 返回 Top N 个最优候选
-        min_voltage: 最小电压阈值 (V)
-        max_voltage: 最大电压阈值 (V)
-    
-    Returns:
-        排序后的候选材料 DataFrame
+                      max_voltage: float = 5.0,
+                      models: Optional[Dict[str, dict]] = None) -> pd.DataFrame:
+    """对候选化学式做成分级筛选排序。
+
+    综合评分 = 0.40 × 稳定性百分位 + 0.30 × 导电性百分位 + 0.30 × 理论容量百分位
+    （与 screening.py 同一套权重；缺少 nLi_extract 列时容量项权重按比例归一）。
+
+    注意：本函数只做「成分级优先级排序」，不替代 DFT / 实验验证。
     """
     if candidates_file is None:
         candidates_file = ROOT / "data" / "cathode_candidates.csv"
-    
-    if not Path(candidates_file).exists():
-        raise FileNotFoundError(f"找不到候选文件：{candidates_file}")
-    
-    print(f"读取候选材料：{candidates_file}")
-    df_cand = pd.read_csv(candidates_file, encoding='utf-8-sig')
-    
-    # 预测每个候选的性质
-    all_results = []
-    for _, row in df_cand.iterrows():
-        result = predict_single(row['formula'], load_models())
-        result['family'] = row.get('family', 'Unknown')
-        result['name'] = row.get('name', row['formula'])
-        all_results.append(result)
-    
-    df_result = pd.DataFrame(all_results)
-    
-    # 过滤电压范围
-    if 'Voltage_ensemble_V' in df_result.columns:
-        mask = (df_result['Voltage_ensemble_V'] >= min_voltage) & \
-               (df_result['Voltage_ensemble_V'] <= max_voltage)
-        df_result = df_result[mask]
-        print(f"电压过滤 ({min_voltage}-{max_voltage} V): 剩余 {len(df_result)} 个候选")
-    
-    # 计算综合评分
-    if all(col in df_result.columns for col in ['Egap_ensemble_eV', 'Eform_ensemble_eV_fu']):
-        # 稳定性：按每原子形成能排名
-        df_result['atoms'] = df_result['total_atoms']
-        df_result['Eform_per_atom'] = df_result['Eform_ensemble_eV_fu'] / df_result['atoms']
-        df_result['score_stability'] = df_result['Eform_per_atom'].rank(pct=True, ascending=False) * 100
-        
-        # 导电性：exp(-bandgap)
-        df_result['score_conduction'] = np.exp(-df_result['Egap_ensemble_eV'].clip(lower=0)).rank(pct=True) * 100
-        
-        # 综合评分
-        df_result['score_total'] = (0.40 * df_result['score_stability'] + 
-                                     0.30 * df_result['score_conduction'])
-        
-        # 排序
-        df_result = df_result.sort_values('score_total', ascending=False)
-        
-        print(f"\nTop {min(n_top, len(df_result))} 候选材料:")
-        top_df = df_result.head(n_top)[['name', 'formula', 'family', 
-                                         'Egap_ensemble_eV', 'Eform_ensemble_eV_fu',
-                                         'Voltage_ensemble_V', 'score_total']]
-        print(top_df.to_string(index=False))
-    
-    return df_result
+    path = Path(candidates_file)
+    if not path.exists():
+        raise FileNotFoundError(f"找不到候选文件：{path}")
+    if models is None:
+        models = load_models()
+
+    from voltage import theoretical_capacity_mAh_g
+
+    cand = pd.read_csv(path, encoding="utf-8-sig")
+    rows = []
+    for _, r in cand.iterrows():
+        pred = predict_single(str(r["formula"]), models)
+        row = {
+            "name": r.get("name", r["formula"]),
+            "formula": r["formula"],
+            "family": r.get("family", "Unknown"),
+            "lit_voltage_V": r.get("avg_voltage_V_lit"),
+        }
+        row.update({k: pred.get(k) for k in
+                    ("Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Eform_per_atom_eV",
+                     "Voltage_ensemble_V")})
+        # 理论比容量
+        try:
+            counts = parse_formula(str(r["formula"]))
+            n_li = float(r["nLi_extract"]) if "nLi_extract" in r else 1.0
+            row["Q_theoretical_mAh_g"] = round(theoretical_capacity_mAh_g(counts, n_li), 1)
+        except (ValueError, KeyError):
+            row["Q_theoretical_mAh_g"] = np.nan
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+
+    if "Voltage_ensemble_V" in df.columns:
+        mask = df["Voltage_ensemble_V"].between(min_voltage, max_voltage)
+        df = df[mask].copy()
+
+    if {"Eform_per_atom_eV", "Egap_ensemble_eV"} <= set(df.columns):
+        df["pct_stability"] = df["Eform_per_atom_eV"].rank(pct=True, ascending=False) * 100
+        df["pct_conduction"] = np.exp(-df["Egap_ensemble_eV"].clip(lower=0)).rank(pct=True) * 100
+        if df["Q_theoretical_mAh_g"].notna().any():
+            df["pct_capacity"] = df["Q_theoretical_mAh_g"].rank(pct=True) * 100
+            w_stab, w_cond, w_cap = W_STAB, W_COND, W_CAP
+        else:  # 无容量列时重新归一，避免总分只有 70
+            df["pct_capacity"] = 0.0
+            w_stab, w_cond, w_cap = W_STAB, W_COND, 0.0
+            total = w_stab + w_cond
+            w_stab, w_cond = w_stab / total, w_cond / total
+        df["score_total"] = (w_stab * df["pct_stability"]
+                             + w_cond * df["pct_conduction"]
+                             + w_cap * df["pct_capacity"])
+        df = df.sort_values("score_total", ascending=False).reset_index(drop=True)
+
+    return df.head(n_top) if n_top else df
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="电池正极材料性质预测 / 候选筛选")
+    ap.add_argument("--formulas", default="", help="逗号分隔的化学式，如 'LiFePO4,LiCoO2'")
+    ap.add_argument("--top", type=int, default=0, help="对候选库筛选并返回 Top N")
+    ap.add_argument("--min-voltage", type=float, default=3.0)
+    ap.add_argument("--max-voltage", type=float, default=5.0)
+    ap.add_argument("--json", action="store_true", help="以 JSON 输出，便于脚本调用")
+    ap.add_argument("--results-dir", default=None, help="模型目录，默认 <repo>/results")
+    args = ap.parse_args(argv)
+
+    models = load_models(args.results_dir)
+    if not models:
+        print("未找到任何模型，请先运行训练脚本（train_gap / train_ef / train_voltage）。")
+        return 1
+
+    formulas = [f for f in args.formulas.split(",") if f.strip()]
+    if formulas:
+        df = predict_material_properties(formulas, models=models, verbose=not args.json)
+        print(df.to_json(orient="records", force_ascii=False, indent=2) if args.json
+              else df.to_string(index=False))
+        return 0
+
+    if args.top:
+        df = screen_candidates(n_top=args.top, min_voltage=args.min_voltage,
+                               max_voltage=args.max_voltage, models=models)
+        print(df.to_json(orient="records", force_ascii=False, indent=2) if args.json
+              else df.to_string(index=False))
+        return 0
+
+    # 默认演示
+    demo = ["LiFePO4", "LiCoO2", "LiMn2O4", "LiNi0.33Co0.33Mn0.34O2", "Li3V2(PO4)3"]
+    print(predict_material_properties(demo, models=models).to_string(index=False))
+    return 0
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("  电池正极材料性质预测工具")
-    print("=" * 60)
-    
-    # 示例 1: 预测几个常见材料
-    test_formulas = [
-        "LiFePO4",      # 橄榄石
-        "LiCoO2",       # 层状氧化物
-        "LiMn2O4",      # 尖晶石
-        "LiNi0.33Co0.33Mn0.34O2",  # NMC
-        "Li3V2(PO4)3",  # 聚阴离子
-    ]
-    
-    print("\n--- 示例 1: 常见材料性质预测 ---")
-    results = predict_material_properties(test_formulas)
-    print(results.to_string(index=False))
-    
-    # 示例 2: 筛选候选材料
-    print("\n--- 示例 2: 候选材料筛选 (Top 5) ---")
-    try:
-        screened = screen_candidates(n_top=5, min_voltage=3.0, max_voltage=5.0)
-    except FileNotFoundError as e:
-        print(f"跳过筛选：{e}")
-    
-    print("\n" + "=" * 60)
-    print("  预测完成!")
-    print("=" * 60)
+    sys.exit(main())

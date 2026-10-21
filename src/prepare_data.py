@@ -26,9 +26,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from formula import parse_formula, canonical_formula  # noqa: E402
 
+SRC_GAP = ROOT / "data/raw/matbench_expt_gap.json.gz"
+SRC_PEROV = ROOT / "data/raw/matbench_perovskites.json.gz"
+
 
 def clean_expt_gap():
-    src = ROOT / "data/raw/matbench_expt_gap.json.gz"
+    src = SRC_GAP
     with gzip.open(src, "rt", encoding="utf-8") as f:
         d = json.load(f)
     cols = d["columns"]          # ['composition', 'gap expt']
@@ -68,7 +71,7 @@ def structure_to_counts(st: dict) -> dict:
 
 
 def clean_perovskites():
-    src = ROOT / "data/raw/matbench_perovskites.json.gz"
+    src = SRC_PEROV
     with gzip.open(src, "rt", encoding="utf-8") as f:
         d = json.load(f)
     cols = d["columns"]          # ['structure', 'e_form']
@@ -97,9 +100,23 @@ def clean_perovskites():
     return df
 
 
-if __name__ == "__main__":
+def main() -> int:
+    missing = [p for p in (SRC_GAP, SRC_PEROV) if not p.exists()]
+    if missing:
+        print("[ERROR] 缺少原始数据：")
+        for p in missing:
+            print(f"        - {p.relative_to(ROOT)}")
+        print("        请先运行: python src/download_data.py")
+        print("        离线环境：手动下载同名文件放入 data/raw/ 后重试。")
+        return 2
+
     print("== 清洗实验带隙数据 ==")
     clean_expt_gap()
     print("== 清洗钙钛矿形成能数据 ==")
     clean_perovskites()
     print("完成。")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
