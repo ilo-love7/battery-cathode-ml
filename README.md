@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 144 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema 与结构筛选产物契约
+- 146 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选产物契约与结构带隙模型契约
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -96,7 +96,8 @@ python run_pipeline.py
 | **形成能** | matbench_perovskites（DFT） | 18,928 | RF+HGB 集成 | **0.484 eV/5原子胞** | 0.642 | 0.252 |
 | **形成能（结构感知）** | matbench_perovskites（21 维结构描述符 + 成分） | 18,928 | RF+HGB 集成 | **0.193 eV/5原子胞** | 0.281 | 0.857 |
 | **形成能（结构 GNN / CGCNN）** | matbench_perovskites（晶体图端到端） | 18,928 | CGCNN（97.5k 参数，GPU） | **0.0401 eV/5原子胞**（0.0080 eV/atom） | 0.0665 | — |
-| **形成能（CGCNN · MP 含 Li）** | MP 含 Li 材料结构（真实 DFT，eV/atom） | 3,000（仓库内）/ 8,000（本地） | CGCNN（GPU） | **0.1921 / 0.0962 eV/atom** | — | — |
+| **形成能（CGCNN · MP 含 Li）** | MP 含 Li 材料结构（真实 DFT） | 3,000 / 8,000 | CGCNN（GPU） | **0.1921 / 0.0962 eV/atom** | — | — |
+| **带隙（CGCNN · MP，阴性结果）** | 同上（MP DFT 带隙，33% 金属） | 3,000 / 8,000 | CGCNN（log1p，GPU） | **0.7304 / 0.5275 eV**（成分基线 0.6479 / 0.5605） | 0.928 | — |
 | **平均电压（双塔 CGCNN）** | MP 插入电极两相结构（端到端） | 2,532 | 双塔 CGCNN（GPU） | **0.352 V**（随机）/ 0.401（分组） | 0.521 | 0.742 |
 | 平均电压（成分 + 结构描述符） | 同上 + 44 维描述符 | 2,667 | RF+HGB 集成 | 0.408 V（随机）/ 0.445（分组） | 0.597 | 0.705 |
 | **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.2 mAh/g** | 46.9 | 0.663 |
@@ -361,6 +362,22 @@ D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/predict_voltage_cgcnn.py --form
 
 CLI **按数据划分分组报告精度**（避免拿训练样本冒充精度）：
 训练集内 n=7 MAE 0.1435 V（仅供参考）｜**测试划分 n=2 MAE 0.3855 V**（与完整测试集 0.3525 V 一致）。
+### 4.3 结构版带隙模型：一个诚实的阴性结果（v1.10.0）
+
+用同一套 CGCNN 训练 **MP DFT 带隙**（33% 为金属，需 log1p 变换）：
+
+| 数据 | test MAE | 成分基线 | 提升 | 半导体子集 MAE | 金属/非金属判对率 |
+|---|---|---|---|---|---|
+| 3,000 条 | 0.7304 eV | 0.6479 eV | **0.89×（更差）** | 0.9334 eV | 78.4% |
+| 8,000 条 | 0.5275 eV | 0.5605 eV | 1.06× | 0.6423 eV | 84.3% |
+
+更关键的是：结构带隙与实验口径成分带隙在 31 条候选上的排序 **Spearman ρ = -0.5589（负相关）**，
+并有 4 条出现「结构判金属、成分判半导体」——根因是 **PBE 系统性低估带隙**。
+
+**工程决策**：导电性评分仍用**实验口径的成分带隙模型**（与「实际导电性」的标签域一致），
+结构带隙作为**交叉检查列**保留并加标记；需要纯结构口径时用 `--prefer-struct-gap` 切换。
+对比形成能（结构带来 12× 提升）可见：**并非所有目标都能从结构信息同等获益**，
+带隙的瓶颈在交换关联泛函而非几何。
 
 ### 5. Jupyter
 
@@ -432,7 +449,7 @@ battery-cathode-ml/
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 144 个单元测试
+├── tests/                       # 146 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -460,7 +477,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 144 个测试
+pytest tests/ -v                                             # 146 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -498,7 +515,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.9.0}
+  version = {1.10.0}
 }
 ```
 

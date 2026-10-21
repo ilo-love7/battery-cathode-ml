@@ -178,3 +178,33 @@ class TestStructDrivenScreening:
         assert not (set(ranked["formula"]) & set(fallback["formula"]))
         # 主排名按分数降序
         assert ranked["score"].is_monotonic_decreasing
+
+
+class TestStructGapModel:
+    """结构版带隙模型（CGCNN on MP band_gap）的产物契约与口径决策（离线）。"""
+
+    METRICS = ROOT / "results" / "metrics_cgcnn_gap_8k.json"
+    SCREEN = ROOT / "results" / "metrics_screening_struct.json"
+
+    def test_gap_metrics_have_specialised_fields(self):
+        if not self.METRICS.exists():
+            pytest.skip("未训练结构带隙模型")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["target"] == "band_gap"
+        assert m["transform"] == "log1p"          # 带隙右偏，必须用 log1p
+        for split in ("train", "val", "test"):
+            assert "MAE_eV_atom" in m[split]
+        # 带隙专用指标：半导体子集 MAE + 金属/非金属判对率
+        assert "MAE_semiconductor_eV" in m["test"]
+        assert 0.0 <= m["test"]["metal_class_accuracy"] <= 1.0
+        assert m["composition_baseline"]["MAE"] > 0
+
+    def test_screening_records_gap_scoring_source(self):
+        if not self.SCREEN.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.SCREEN, encoding="utf-8"))
+        assert "gap_scoring_source" in m
+        assert "struct_gap_coverage_among_ranked" in m
+        # PBE 低估导致结构/实验口径排序负相关，这是选择评分口径的依据
+        rho = m.get("gap_rank_correlation_struct_vs_comp")
+        assert rho is None or rho < 0.5, f"若结构带隙与实验口径强相关，应重新评估口径决策: {rho}"

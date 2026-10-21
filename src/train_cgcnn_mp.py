@@ -46,10 +46,10 @@ from cgcnn_data import CUTOFF, MAX_NEIGHBORS, build_graph  # noqa: E402
 
 DEFAULT_DATA = ROOT / "data" / "processed" / "mp_structures_Li.json.gz"
 OUT = ROOT / "results"
-TARGET = "e_form_per_atom"
+DEFAULT_TARGET = "e_form_per_atom"
 
 
-def load_structures(path: Path, limit: int = 0):
+def load_structures(path: Path, limit: int = 0, target: str = DEFAULT_TARGET):
     """读取结构 json.gz -> (graphs, y, formulas, ids)。"""
     if not path.exists():
         raise SystemExit(
@@ -60,7 +60,7 @@ def load_structures(path: Path, limit: int = 0):
     graphs, ys, formulas, ids = [], [], [], []
     t0 = time.time()
     for r in rows:
-        st, y = r.get("structure"), r.get(TARGET)
+        st, y = r.get("structure"), r.get(target)
         if st is None or y is None:
             continue
         g = build_graph(st)
@@ -77,8 +77,13 @@ def load_structures(path: Path, limit: int = 0):
     return graphs, np.asarray(ys, dtype=np.float32), formulas, ids
 
 
-def composition_baseline(formulas, y, train_idx, test_idx, seed: int = 42):
-    """同数据上的成分模型（33 统计 + 元素分数 + RF/HGB 集成），作为对照。"""
+def composition_baseline(formulas, y_raw, train_idx, test_idx, seed: int = 42,
+                         transform: str = "none"):
+    """同数据上的成分模型（33 统计 + 元素分数 + RF/HGB 集成），作为对照。
+
+    transform: none | log1p —— 与 CGCNN 用同一目标变换，保证同口径可比。
+    """
+    y = np.log1p(y_raw) if transform == "log1p" else y_raw
     try:
         from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
         from sklearn.impute import SimpleImputer
@@ -111,13 +116,17 @@ def composition_baseline(formulas, y, train_idx, test_idx, seed: int = 42):
         m.fit(X.iloc[tr], yk[tr])
         preds.append(m.predict(X.iloc[te]))
     pred = 0.5 * (preds[0] + preds[1])
-    err = np.abs(pred - yk[te])
+    pred_raw = np.expm1(pred) if transform == "log1p" else pred
+    if transform == "log1p":
+        pred_raw = np.clip(pred_raw, 0.0, None)
+    err = np.abs(pred_raw - y_raw[keep][te])
     return {"n_train": int(len(tr)), "n_test": int(len(te)),
-            "MAE_eV_atom": float(err.mean()),
-            "note": "同数据、同划分上的成分模型（无结构信息）"}
+            "MAE": float(err.mean()),
+            "note": "同数据、同划分、同目标变换上的成分模型（无结构信息）"}
 
 
-def evaluate(model, graphs, idx, y_raw, mean, std, batch_size, device):
+def evaluate(model, graphs, idx, y_raw, mean, std, batch_size, device, inverse=None):
+    """inverse: 可选的预测反变换（如 log1p -> expm1 并裁剪到 >=0）。"""
     import torch
     from cgcnn_model import batch_tensors
 
@@ -129,13 +138,23 @@ def evaluate(model, graphs, idx, y_raw, mean, std, batch_size, device):
             (node, efea, src, dst, bvec), _ = batch_tensors(graphs, chunk, device,
                                                            y_raw[chunk])
             out = model(node, efea, src, dst, bvec) * std + mean
-            preds.append(out.detach().cpu().numpy())
+            arr = out.detach().cpu().numpy()
+            if inverse is not None:
+                arr = inverse(arr)
+            preds.append(arr)
     pred = np.concatenate(preds) if preds else np.asarray([])
     true = y_raw[idx]
     err = pred - true
-    return {"n": int(len(idx)), "MAE_eV_atom": float(np.mean(np.abs(err))),
-            "RMSE_eV_atom": float(np.sqrt(np.mean(err ** 2))),
-            "pred": pred, "true": true}
+    out = {"n": int(len(idx)), "MAE_eV_atom": float(np.mean(np.abs(err))),
+           "RMSE_eV_atom": float(np.sqrt(np.mean(err ** 2))),
+           "pred": pred, "true": true}
+    # 带隙特有：半导体子集 MAE + 金属/非金属分类准确率（物理上有意义的补充指标）
+    metal_true = true <= 1e-9
+    if metal_true.any() and (~metal_true).any():
+        semi = ~metal_true
+        out["MAE_semiconductor_eV"] = float(np.abs(err[semi]).mean())
+        out["metal_class_accuracy"] = float(((pred <= 0.05) == metal_true).mean())
+    return out
 
 
 def main(argv=None) -> int:
@@ -143,7 +162,12 @@ def main(argv=None) -> int:
     enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="CGCNN 训练（Materials Project 含 Li 材料）")
     ap.add_argument("--data", default=str(DEFAULT_DATA))
-    ap.add_argument("--tag", default="cgcnn_mp")
+    ap.add_argument("--target", default=DEFAULT_TARGET,
+                    choices=["e_form_per_atom", "band_gap"],
+                    help="回归目标：每原子形成能 或 DFT 带隙")
+    ap.add_argument("--log1p", action="store_true",
+                    help="对目标取 log1p 训练（带隙分布严重右偏，33%% 为 0，推荐开启）")
+    ap.add_argument("--tag", default=None)
     ap.add_argument("--epochs", type=int, default=120)
     ap.add_argument("--batch-size", type=int, default=128)
     ap.add_argument("--lr", type=float, default=1e-3)
@@ -176,16 +200,23 @@ def main(argv=None) -> int:
     print(f"device={device}" + (f" ({torch.cuda.get_device_name(0)})"
                                if device.type == "cuda" else ""))
 
-    if args.limit and args.tag == "cgcnn_mp":
-        args.tag = "cgcnn_mp_smoke"
+    if args.tag is None:
+        args.tag = "cgcnn_gap" if args.target == "band_gap" else "cgcnn_mp"
+    if args.limit and args.tag in ("cgcnn_mp", "cgcnn_gap"):
+        args.tag = args.tag + "_smoke"
         print(f"[冒烟模式] 输出 tag 改为 {args.tag}")
+    transform = "log1p" if args.log1p else "none"
+    inverse = (lambda a: np.clip(np.expm1(a), 0.0, None)) if args.log1p else None
 
-    graphs, y, formulas, ids = load_structures(Path(args.data), args.limit)
+    graphs, y_raw, formulas, ids = load_structures(Path(args.data), args.limit, args.target)
     if len(graphs) < 100:
         print("[ERROR] 样本过少（需要 ≥100），检查 --data/--limit")
         return 2
-    print(f"目标 {TARGET}: 均值 {y.mean():.3f} ± {y.std():.3f} eV/atom | "
-          f"MAD {np.abs(y - np.median(y)).mean():.3f}")
+    y = np.log1p(y_raw) if args.log1p else y_raw
+    unit = "eV" if args.target == "band_gap" else "eV/atom"
+    print(f"目标 {args.target}: 均值 {y_raw.mean():.3f} ± {y_raw.std():.3f} {unit} | "
+          f"MAD {np.abs(y_raw - np.median(y_raw)).mean():.3f}"
+          + (f" | 训练用 log1p（金属占比 {100*(y_raw==0).mean():.0f}%）" if args.log1p else ""))
 
     rng = np.random.default_rng(args.seed)
     perm = rng.permutation(len(graphs))
@@ -221,7 +252,8 @@ def main(argv=None) -> int:
             opt.step()
             tot += float(loss.item())
             nb += 1
-        val = evaluate(model, graphs, val_idx, y, mean, std, args.batch_size * 4, device)
+        val = evaluate(model, graphs, val_idx, y_raw, mean, std, args.batch_size * 4, device,
+                       inverse=inverse)
         sched.step(val["MAE_eV_atom"])
         history.append({"epoch": epoch, "train_loss": tot / max(nb, 1),
                         "val_MAE_eV_atom": val["MAE_eV_atom"]})
@@ -239,16 +271,19 @@ def main(argv=None) -> int:
 
     if best_state is not None:
         model.load_state_dict(best_state)
-    tr = evaluate(model, graphs, train_idx, y, mean, std, args.batch_size * 4, device)
-    va = evaluate(model, graphs, val_idx, y, mean, std, args.batch_size * 4, device)
-    te = evaluate(model, graphs, test_idx, y, mean, std, args.batch_size * 4, device)
+    tr = evaluate(model, graphs, train_idx, y_raw, mean, std, args.batch_size * 4, device, inverse=inverse)
+    va = evaluate(model, graphs, val_idx, y_raw, mean, std, args.batch_size * 4, device, inverse=inverse)
+    te = evaluate(model, graphs, test_idx, y_raw, mean, std, args.batch_size * 4, device, inverse=inverse)
     elapsed = time.time() - t0
 
-    baseline = None if args.no_baseline else composition_baseline(formulas, y, train_idx, test_idx)
+    baseline = (None if args.no_baseline
+                else composition_baseline(formulas, y_raw, train_idx, test_idx,
+                                          transform=transform))
 
     OUT.mkdir(exist_ok=True)
     torch.save({"state_dict": model.state_dict(), "hyper": vars(args),
-                "target": TARGET, "target_mean": mean, "target_std": std,
+                "target": args.target, "target_transform": transform,
+                "target_mean": mean, "target_std": std,
                 "atom_fea_len": args.atom_fea_len, "n_conv": args.n_conv,
                 "h_fea_len": args.h_fea_len, "n_h": args.n_h,
                 "cutoff": args.cutoff, "max_neighbors": args.max_neighbors,
@@ -259,21 +294,27 @@ def main(argv=None) -> int:
         "mode": "subset-smoke" if args.limit else "full",
         "data": str(Path(args.data).name),
         "n_graphs": len(graphs),
-        "target": TARGET,
+        "target": args.target,
+        "transform": transform,
+        "unit": unit,
         "split": {"train": len(train_idx), "val": len(val_idx), "test": len(test_idx)},
         "hyper": {k: v for k, v in vars(args).items() if k != "data"},
         "n_params": n_params(model),
         "elapsed_sec": round(elapsed, 1),
         "epochs_run": len(history),
-        "train": {k: round(v, 4) for k, v in tr.items() if k.startswith(("MAE", "RMSE"))},
-        "val": {k: round(v, 4) for k, v in va.items() if k.startswith(("MAE", "RMSE"))},
-        "test": {k: round(v, 4) for k, v in te.items() if k.startswith(("MAE", "RMSE"))},
+        "train": {k: round(v, 4) for k, v in tr.items()
+                  if k.startswith(("MAE", "RMSE", "metal_"))},
+        "val": {k: round(v, 4) for k, v in va.items()
+                if k.startswith(("MAE", "RMSE", "metal_"))},
+        "test": {k: round(v, 4) for k, v in te.items()
+                 if k.startswith(("MAE", "RMSE", "metal_"))},
         "composition_baseline": baseline,
         "history": history,
         "reference": {
             "comp_plus_struct_on_perovskites_eV_cell": 0.1929,
             "cgcnn_on_perovskites_test_eV_cell": 0.0401,
             "mp_li_comp_external_offset_corrected_eV_atom": 0.7347,
+            "exp_gap_model_cross_schema_spearman_on_mp_li": 0.3319,
         },
     }
     with open(OUT / f"metrics_{args.tag}.json", "w", encoding="utf-8") as f:
@@ -301,16 +342,20 @@ def main(argv=None) -> int:
     plt.close(fig)
 
     print("\n" + "=" * 72)
-    print(f"  CGCNN（MP 含 Li 材料，{metrics['data']}）  目标 = e_form (eV/atom)")
+    print(f"  CGCNN（MP 含 Li 材料，{metrics['data']}）  目标 = {args.target}（{unit}）"
+          + ("  [log1p]" if args.log1p else ""))
     print("=" * 72)
     for name, m in (("train", tr), ("val", va), ("test", te)):
         print(f"  {name:5s} n={m['n']:6d}  MAE={m['MAE_eV_atom']:.4f}  "
               f"RMSE={m['RMSE_eV_atom']:.4f} eV/atom")
     if baseline:
         print("-" * 72)
-        print(f"  成分基线（同数据同划分，无结构）: MAE={baseline['MAE_eV_atom']:.4f} eV/atom")
-        print(f"  结构模型相对成分基线提升: {baseline['MAE_eV_atom']/te['MAE_eV_atom']:.1f}x")
-    print(f"  目标分布 MAD={np.abs(y - np.median(y)).mean():.4f} eV/atom（中位数基线参照）")
+        print(f"  成分基线（同数据/同划分/同变换，无结构）: MAE={baseline['MAE']:.4f} {unit}")
+        print(f"  结构模型相对成分基线提升: {baseline['MAE']/te['MAE_eV_atom']:.2f}x")
+    print(f"  目标分布 MAD={np.abs(y_raw - np.median(y_raw)).mean():.4f} {unit}（中位数基线参照）")
+    if args.target == "band_gap" and "MAE_semiconductor_eV" in te:
+        print(f"  带隙专用指标: 半导体子集 MAE={te['MAE_semiconductor_eV']:.4f} eV | "
+              f"金属/非金属判对率={te['metal_class_accuracy']*100:.1f}%")
     print(f"  用时 {elapsed:.0f}s（{len(history)} 轮）| device={device}")
     print(f"[SAVE] results/{args.tag}.pt / metrics_{args.tag}.json / parity_{args.tag}.png")
     return 0

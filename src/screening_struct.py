@@ -7,7 +7,7 @@
 |---|---|---|
 | 稳定性 | 成分形成能模型（matbench 钙钛矿，跨域外推） | **CGCNN（MP 含 Li 域，每原子形成能）**，无结构时回退成分模型 |
 | 电压 | 不参与评分 | **双塔 CGCNN**（有电极对时）/ 成分电压模型（回退） |
-| 导电性 | 成分带隙模型 | 同（尚未训练结构版带隙模型，见 README 局限） |
+| 导电性 | 成分带隙模型 | **CGCNN 带隙（结构，v1.10.0）**，无结构时回退成分模型 |
 | 风险标记 | 域外元素 / 分歧 / 带隙外推 | 追加 **结构缺失**、**结构 vs 成分分歧大**、**电压来自成分回退** |
 
 流程：
@@ -60,6 +60,8 @@ CANDIDATES = ROOT / "data" / "cathode_candidates.csv"
 STRUCTURES = ROOT / "data" / "raw" / "mp_structures_candidates.json.gz"
 PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_candidates.json.gz"
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
+CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
+GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
 CGCNN_V = ROOT / "results" / "cgcnn_voltage.pt"
 OUT = ROOT / "results"
 W_STAB, W_COND, W_CAP = 0.40, 0.30, 0.30
@@ -100,6 +102,46 @@ def _cgcnn_e_form(model_path: Path, structures: dict) -> dict:
                     .detach().cpu().numpy())
             for (f, mid), p in zip([keys[i] for i in chunk], pred):
                 out[f] = (float(p), mid)
+    return out
+
+
+def _cgcnn_scalar(model_path: Path, structures: dict, log1p: bool = False) -> dict:
+    """通用：用 CGCNN 对结构预测单个标量（默认按 log1p 训练则反变换并裁剪到 >=0）。
+
+    返回 {query_formula: value}。
+    """
+    import torch
+    from cgcnn_model import batch_tensors, build_model
+
+    if not model_path.exists():
+        print(f"[WARN] 缺少 {model_path.name}，跳过该结构标量预测")
+        return {}
+    ckpt = torch.load(model_path, map_location="cpu", weights_only=False)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_model(ckpt.get("atom_fea_len", 64), ckpt.get("n_conv", 3),
+                        ckpt.get("h_fea_len", 128), ckpt.get("n_h", 1))
+    model.load_state_dict(ckpt["state_dict"])
+    model.to(device).eval()
+    mean, std = float(ckpt.get("target_mean", 0.0)), float(ckpt.get("target_std", 1.0))
+    use_log1p = log1p or ckpt.get("target_transform") == "log1p"
+
+    graphs, keys = [], []
+    for f, st in structures.items():
+        g = build_graph(st)
+        if g is None:
+            continue
+        graphs.append(g)
+        keys.append(f)
+    out = {}
+    with torch.no_grad():
+        for s in range(0, len(graphs), 64):
+            chunk = list(range(s, min(s + 64, len(graphs))))
+            (node, efea, src, dst, bvec) = batch_tensors(graphs, chunk, device)
+            pred = (model(node, efea, src, dst, bvec) * std + mean).detach().cpu().numpy()
+            if use_log1p:
+                pred = np.clip(np.expm1(pred), 0.0, None)
+            for k, p in zip([keys[i] for i in chunk], pred):
+                out[k] = float(p)
     return out
 
 
@@ -199,6 +241,8 @@ def main(argv=None) -> int:
     ap.add_argument("--pairs", default=str(PAIRS))
     ap.add_argument("--tag", default="struct")
     ap.add_argument("--no-cgcnn", action="store_true", help="只用成分模型（对照）")
+    ap.add_argument("--prefer-struct-gap", action="store_true",
+                    help="用 CGCNN 结构带隙参与评分（默认用实验口径成分带隙，见 metrics.note）")
     args = ap.parse_args(argv)
 
     try:
@@ -221,6 +265,14 @@ def main(argv=None) -> int:
     else:
         print("[INFO] 无结构文件或已禁用 CGCNN → 全部回退成分模型")
 
+    # ---- 结构带隙：CGCNN ----
+    cg_gap = {}
+    if not args.no_cgcnn and Path(args.structures).exists():
+        struct_map = {r["query_formula"]: r.get("structure") for r in struct_rows
+                      if r.get("structure")}
+        cg_gap = _cgcnn_scalar(Path(CGCNN_GAP), struct_map, log1p=True)
+        print(f"结构带隙命中（CGCNN）: {len(cg_gap)}/{len(formulas)}")
+
     # ---- 电极对：双塔 CGCNN 电压 ----
     cg_v = {}
     if not args.no_cgcnn and Path(args.pairs).exists():
@@ -241,6 +293,19 @@ def main(argv=None) -> int:
     df["struct_voltage_n_li"] = [cg_v.get(f, (np.nan, np.nan, np.nan))[1] for f in formulas]
     df["struct_voltage_true_V"] = [cg_v.get(f, (np.nan, np.nan, np.nan))[2] for f in formulas]
 
+    df["cgcnn_gap_eV"] = [cg_gap.get(f, np.nan) for f in formulas]
+    df["has_struct_gap"] = df["cgcnn_gap_eV"].notna()
+    # 评分口径选择（见 metrics.note / 报告附录 J）：
+    # CGCNN 带隙来自 MP 的 PBE 值，对 Li 体系的排序与实验口径**负相关**（ρ≈-0.57，PBE 系统性低估），
+    # 因此默认仍用「实验带隙训练的成分模型」参与评分，结构带隙作为**交叉检查列**保留；
+    # 需要纯结构口径时用 --prefer-struct-gap 切换。
+    if args.prefer_struct_gap:
+        df["gap_eV"] = df["cgcnn_gap_eV"].where(df["has_struct_gap"], df["comp_gap_eV"])
+        df["gap_source"] = np.where(df["has_struct_gap"], "CGCNN(结构,PBE)", "成分模型")
+    else:
+        df["gap_eV"] = df["comp_gap_eV"]
+        df["gap_source"] = "成分模型(实验口径) + CGCNN 交叉检查"
+    df["gap_diff_eV"] = (df["cgcnn_gap_eV"] - df["comp_gap_eV"]).abs()
     df["has_structure"] = df["cgcnn_ef_eV_atom"].notna()
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
     df["stability_eV_atom"] = df["cgcnn_ef_eV_atom"].where(df["has_structure"],
@@ -272,7 +337,7 @@ def main(argv=None) -> int:
 
     # ---- 评分 ----
     df["pct_stability"] = df["stability_eV_atom"].rank(pct=True, ascending=False) * 100
-    df["pct_conduction"] = np.exp(-df["comp_gap_eV"].clip(lower=0)).rank(pct=True) * 100
+    df["pct_conduction"] = np.exp(-df["gap_eV"].clip(lower=0)).rank(pct=True) * 100
     df["pct_capacity"] = df["Q_theoretical_mAh_g"].rank(pct=True) * 100
     df["score"] = (W_STAB * df["pct_stability"] + W_COND * df["pct_conduction"]
                    + W_CAP * df["pct_capacity"])
@@ -281,7 +346,12 @@ def main(argv=None) -> int:
     df["flag"] = ""
     df.loc[~df["has_structure"], "flag"] += "结构缺失(仅成分回退);"
     df.loc[df["rank_shift"] > RANK_SHIFT_THRESHOLD, "flag"] += "结构/成分排名偏离大;"
-    df.loc[df["comp_gap_eV"] <= 0, "flag"] += "带隙外推(≤0);"
+    df.loc[df["gap_eV"] <= 0, "flag"] += "带隙≤0(金属/外推);"
+    df.loc[df["has_struct_gap"] & (df["gap_diff_eV"] > GAP_DIFF_THRESHOLD),
+           "flag"] += "带隙结构/成分差异大;"
+    # PBE 系统性低估带隙：结构模型判金属、成分模型判半导体时单独提示（避免导电性分虚高）
+    df.loc[(df["cgcnn_gap_eV"] <= 0.05) & (df["comp_gap_eV"] > 0.5),
+           "flag"] += "结构判金属/成分判半导体(PBE低估);"
     df.loc[df["has_structure"] & ~df["has_struct_voltage"], "flag"] += "电压成分回退;"
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
 
@@ -300,7 +370,8 @@ def main(argv=None) -> int:
 
     OUT.mkdir(exist_ok=True)
     keep = ["rank", "name", "formula", "family", "cgcnn_ef_eV_atom", "rank_struct",
-            "rank_comp", "rank_shift", "voltage_source", "voltage_V",
+            "rank_comp", "rank_shift", "gap_source", "gap_eV", "cgcnn_gap_eV",
+            "comp_gap_eV", "gap_diff_eV", "voltage_source", "voltage_V",
             "Q_theoretical_mAh_g", "score", "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
@@ -342,17 +413,27 @@ def main(argv=None) -> int:
         "n_ranked_with_structure": int(len(df)),
         "n_fallback_without_structure": int(len(fallback)),
         "struct_voltage_coverage_among_ranked": int(df["has_struct_voltage"].sum()),
+        "struct_gap_coverage_among_ranked": int(df["has_struct_gap"].sum()),
+        "gap_metal_disagreement_count": int(
+            ((df["cgcnn_gap_eV"] <= 0.05) & (df["comp_gap_eV"] > 0.5)).sum()),
+        "gap_rank_correlation_struct_vs_comp": (None if len(df) < 4 else round(float(
+            df["cgcnn_gap_eV"].corr(df["comp_gap_eV"], method="spearman")), 4)),
         "weights": {"stability": W_STAB, "conduction": W_COND, "capacity": W_CAP},
         "flag_counts": df["flag"].value_counts().to_dict(),
         "top10": df.head(10)[["rank", "name", "formula", "score", "flag"]].to_dict("records"),
         "stability_rank_correlation_struct_vs_comp": None if rho != rho else round(rho, 4),
+        "gap_scoring_source": ("CGCNN(结构,PBE)" if args.prefer_struct_gap
+                               else "成分模型(实验口径)"),
         "note": ("**主排名只收录有结构的候选**：稳定性来自 CGCNN（MP 含 Li 域，每原子形成能）。"
                  "成分模型的 e_form 是 matbench 5 原子胞口径（正负号与 MP 都不同），"
                  "两者不可混排，故无结构候选单列于 *_fallback.csv。"
-                 "电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；导电性仍为成分带隙模型。"),
+                 "电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；"
+                 "导电性默认用实验口径的成分带隙（CGCNN 结构带隙在 Li 体系与实验口径排序负相关 ρ≈-0.57，"
+                 "PBE 系统性低估，仅作交叉检查列），可用 --prefer-struct-gap 切换为结构口径。"),
         "caveats": [
             "CGCNN 稳定性为 MP PBE 口径，与实验值仍有系统偏差",
-            "导电性尚无结构版模型（成分带隙模型对 Li 正极属外推）",
+            "结构带隙为 MP DFT-PBE 口径：在 Li 体系上与实验口径排序负相关（ρ≈-0.57），"
+            "金属/非金属判对率 83%，不适合单独作为导电性判据",
             "容差匹配得到的结构是 MP 的近似有序超胞，与真实固溶体/无序相有差异",
         ],
     }
