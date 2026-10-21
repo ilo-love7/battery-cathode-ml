@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 86 个单元测试，含「特征列顺序」回归测试、元素表完整性、文档一致性、MP 数据清洗规则
+- 96 个单元测试，含「特征列顺序」回归测试、元素表完整性、文档一致性、MP 数据清洗规则、多目标与外部验证
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -95,16 +95,22 @@ python run_pipeline.py
 | **带隙** | matbench_expt_gap（实验值） | 4,604 | RF+HGB 集成 | **0.440 eV** | 0.808 | 0.687 |
 | **形成能** | matbench_perovskites（DFT） | 18,928 | RF+HGB 集成 | **0.484 eV/5原子胞** | 0.642 | 0.252 |
 | **平均电压** | **Materials Project 插入电极（真实 `average_voltage`）** | 2,672（1,794 个唯一成分） | RF+HGB 集成 | **0.419 V** | 0.620 | 0.682 |
+| **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.2 mAh/g** | 46.9 | 0.663 |
 | 平均电压（合成对照） | `battery_voltage.csv`（合成演示数据） | 500 | RF+HGB 集成 | 0.192 V | 0.252 | 0.548 |
 
-**外部验证**（12 个文献常见商用正极，不参与训练）：
-**MAE 0.160 V、RMSE 0.212 V、Spearman ρ 0.842** —— 其中 NMC111 误差 0.006 V、NMC523 0.008 V、
-LiFePO4 0.061 V。复现：`python src/validate_known_cathodes.py`。
+**外部验证 I｜文献商用正极（12 个，不参与训练）**：
+**MAE 0.160 V、RMSE 0.212 V、Spearman ρ 0.842** —— NMC111 误差 0.006 V、NMC523 0.008 V、LiFePO4 0.061 V。
+复现：`python src/validate_known_cathodes.py`。
+
+**外部验证 II｜Materials Project 含 Li 材料（8,942 条，跨口径）**：
+形成能**去偏移 MAE 0.735 eV/atom**（MP 均值基线 MAD 0.805）、Spearman ρ 0.475；
+带隙 MAE 1.12 eV、ρ 0.332（模型训练于**实验**带隙，MP 为 DFT-PBE，属跨口径比较）。
+复现：`python src/validate_mp_external.py`。这组数字说明**域外推能力有限**，也是下一步做结构模型的直接证据。
 
 > **关于电压两行的读法**：真实数据那一行才是可用结论。同一化学式在该数据集里可能对应
 > 多个电压（不同框架/脱锂区间），因此额外按 `framework_formula` 做 GroupKFold，
 > MAE 为 **0.481 V**、R² 0.627 —— 这是更严格的泛化估计。
-> 中位数基线 MAE 为 0.679 V，模型相对基线降低约 38%。
+> 中位数基线 MAE 为 0.679 V，模型相对基线降低约 38%；容量模型相对基线（MAD 47.8 mAh/g）降低约 47%。
 >
 > 合成数据那一行只说明**流程可跑通**，不含真实物理信息，保留作对照，请勿引用为结论。
 >
@@ -121,6 +127,7 @@ LiFePO4 0.061 V。复现：`python src/validate_known_cathodes.py`。
 | `matbench_expt_gap` / `matbench_perovskites` | `python src/download_data.py`（官方 `ml.materialsproject.org`，无需 Key） | ❌（体积原因，`.gitignore` 排除） |
 | **MP 插入电极真实电压** | `python src/fetch_mp_battery.py --what electrodes` → `python src/prepare_mp_data.py`（需免费 MP API Key） | ✅ 清洗后的 `data/processed/mp_voltage.csv` 已随仓库提供，**没有 Key 也能复现真实指标** |
 | `data/battery_voltage.csv` | 已随仓库提供，或 `python src/generate_voltage_data.py` 重新生成 | ✅ |
+| **MP 含 Li 材料摘要（外部验证集）** | `python src/fetch_mp_battery.py --what summary` → `python src/prepare_mp_summary.py` | ✅ 清洗后的 `data/processed/mp_summary_Li.csv.gz`（8,942 条）已随仓库提供 |
 | `data/cathode_candidates.csv` | 已随仓库提供（40 个候选正极成分） | ✅ |
 
 **配置 Materials Project API Key**（免费，约 2 分钟）：
@@ -175,7 +182,9 @@ python src/train_ef.py
 python src/fetch_mp_battery.py --what electrodes      # 拉 2.7k 条插入电极
 python src/prepare_mp_data.py                          # 清洗 -> data/processed/mp_voltage.csv
 python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
+python src/train_capacity.py                           # 多目标：比容量模型
 python src/validate_known_cathodes.py                  # 与 12 个商用正极对照
+python src/validate_mp_external.py                     # 与 8,942 条 MP 含 Li 材料对照（跨口径）
 
 # 合成数据对照（可选）
 python src/train_voltage.py --data data/battery_voltage.csv --tag voltage_synthetic
@@ -253,17 +262,20 @@ battery-cathode-ml/
 │   ├── prepare_data.py          # 数据清洗
 │   ├── fetch_mp_battery.py      # ★ MP 插入电极/摘要拉取（需 Key）
 │   ├── prepare_mp_data.py       # ★ MP 电极数据清洗 -> mp_voltage.csv
+│   ├── prepare_mp_summary.py    # ★ MP 摘要清洗 -> mp_summary_Li.csv.gz（外部验证集）
 │   ├── train_gap.py             # 带隙模型
 │   ├── train_ef.py              # 形成能模型
-│   ├── train_voltage.py         # 平均电压模型（--data / --tag 切换数据集）
+│   ├── train_voltage.py         # 平均电压 / 比容量模型（--data/--tag/--target 切换）
+│   ├── train_capacity.py        # ★ 比容量模型（多目标，复用同一训练框架）
 │   ├── validate_known_cathodes.py  # ★ 文献商用正极外部验证
+│   ├── validate_mp_external.py  # ★ MP 含 Li 材料外部验证（跨口径）
 │   ├── screening.py             # 候选筛选排序
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 86 个单元测试
+├── tests/                       # 96 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -278,7 +290,7 @@ battery-cathode-ml/
 | # | 方向 | 做什么 | 预期收益 |
 |---|---|---|---|
 | ~~1~~ | ~~接真实电池数据~~ ✅ **已完成** | `fetch_mp_battery.py` + `prepare_mp_data.py` 拉取并清洗 2,772 条 MP 插入电极，真实电压模型 MAE 0.419 V | 电压指标首次具备物理意义 |
-| 1 | **容量等多目标** | MP 电极数据自带 `capacity_grav`，同一套特征再加一个容量模型 | 筛选评分中的「容量」项从理论估算换成模型预测 |
+| ~~2~~ | ~~容量等多目标~~ ✅ **已完成** | `train_capacity.py`：真实 `capacity_grav`，MAE 25.2 mAh/g（基线 47.8），任意化学式可用 | 筛选缺 `nLi_extract` 时也有容量维度 |
 | 2 | **结构特征 / 图神经网络** | 用 `export_cgcnn.py` 导出结构，训练 CGCNN（参照 matbench coGN 0.0269 eV/胞） | 形成能 MAE 从 0.48 → 0.03-0.10，突破成分不可约上限 |
 | 3 | **不确定性校准** | 用 OOF 残差做分位数回归 / conformal prediction，输出 90% 预测区间 | 从「模型分歧」升级为可解释的置信区间 |
 | 4 | **多目标优化** | 用 Pareto 前沿（电压 vs 容量 vs 稳定性）替代线性加权评分 | 避免权重拍脑袋，给出取舍曲线 |
@@ -291,7 +303,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 86 个测试
+pytest tests/ -v                                             # 96 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -299,7 +311,9 @@ black src tests && flake8 src tests                          # 风格
 python src/fetch_mp_battery.py --what electrodes
 python src/prepare_mp_data.py
 python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
+python src/train_capacity.py
 python src/validate_known_cathodes.py
+python src/validate_mp_external.py
 ```
 
 CI（`.github/workflows/ci.yml`）包含：语法门禁 → lint/format（非阻断）→ 单元测试（含覆盖率）
@@ -325,7 +339,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.2.0}
+  version = {1.3.0}
 }
 ```
 

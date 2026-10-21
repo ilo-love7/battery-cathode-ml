@@ -59,6 +59,12 @@ RNG = 42
 OUTPUT_DIR = ROOT / "results"
 SYNTHETIC_DATA = ROOT / "data" / "battery_voltage.csv"
 
+# 目标 -> (中文名, 单位) 用于打印与画图
+TARGET_META = {
+    "average_voltage_V": ("平均电压", "V"),
+    "capacity_grav": ("比容量", "mAh/g"),
+}
+
 
 def load_data(path: Path) -> pd.DataFrame:
     """读取数据；默认合成数据不存在时按需生成。"""
@@ -112,7 +118,7 @@ def _metrics(y, p) -> dict:
     }
 
 
-def evaluate_voltage(X, y):
+def evaluate_voltage(X, y, unit: str = "V"):
     """5 折 OOF 评估，返回 (metrics, preds, ens_pred, fitted_models)。"""
     kf = KFold(n_splits=5, shuffle=True, random_state=RNG)
     models = build_voltage_models()
@@ -123,20 +129,20 @@ def evaluate_voltage(X, y):
         oof = cross_val_predict(model, X, y, cv=kf, n_jobs=1)
         preds[name] = np.asarray(oof, dtype=float)
         metrics[name] = _metrics(y, preds[name])
-        print(f"  [{name}] MAE={metrics[name]['MAE']:.4f} V, "
-              f"RMSE={metrics[name]['RMSE']:.4f} V, R2={metrics[name]['R2']:.4f}")
+        print(f"  [{name}] MAE={metrics[name]['MAE']:.4f} {unit}, "
+              f"RMSE={metrics[name]['RMSE']:.4f} {unit}, R2={metrics[name]['R2']:.4f}")
 
     ens_pred = 0.5 * preds["RF"] + 0.5 * preds["HGB"]
     metrics["Ensemble"] = _metrics(y, ens_pred)
-    print(f"\n[Ensemble] MAE={metrics['Ensemble']['MAE']:.4f} V, "
-          f"RMSE={metrics['Ensemble']['RMSE']:.4f} V, "
+    print(f"\n[Ensemble] MAE={metrics['Ensemble']['MAE']:.4f} {unit}, "
+          f"RMSE={metrics['Ensemble']['RMSE']:.4f} {unit}, "
           f"R2={metrics['Ensemble']['R2']:.4f}  ({time.time() - t0:.0f}s)")
 
     fitted = {name: m.fit(X, y) for name, m in build_voltage_models().items()}
     return metrics, preds, ens_pred, fitted
 
 
-def evaluate_grouped(X, y, groups) -> dict:
+def evaluate_grouped(X, y, groups, unit: str = "V") -> dict:
     """按分组列做 GroupKFold（同框架不同锂含量不跨折泄漏），返回三种预测器指标。"""
     if groups is None or len(np.unique(groups)) < 5:
         return {}
@@ -147,16 +153,20 @@ def evaluate_grouped(X, y, groups) -> dict:
         p = cross_val_predict(model, X, y, cv=cv, groups=groups, n_jobs=1)
         preds[name] = np.asarray(p, dtype=float)
         out[name] = _metrics(y, preds[name])
-        print(f"  [{name}] MAE={out[name]['MAE']:.4f} V, R2={out[name]['R2']:.4f}")
+        print(f"  [{name}] MAE={out[name]['MAE']:.4f} {unit}, R2={out[name]['R2']:.4f}")
     ens = 0.5 * preds["RF"] + 0.5 * preds["HGB"]
     out["Ensemble"] = _metrics(y, ens)
-    print(f"  [Ensemble] MAE={out['Ensemble']['MAE']:.4f} V, "
+    print(f"  [Ensemble] MAE={out['Ensemble']['MAE']:.4f} {unit}, "
           f"R2={out['Ensemble']['R2']:.4f}")
     return out
 
 
-def plot_results(y_true, y_pred_ens, tag: str):
-    """平差图。"""
+def plot_results(y_true, y_pred_ens, tag: str, target: str = "average_voltage_V"):
+    """平差图（坐标轴标签随目标切换）。"""
+    _, unit = TARGET_META.get(target, (target, ""))
+
+    ylabel = {"average_voltage_V": "True Average Voltage (V)",
+              "capacity_grav": "True Capacity (mAh/g)"}.get(target, f"True {target}")
     OUTPUT_DIR.mkdir(exist_ok=True)
     set_plot_style()
 
@@ -167,11 +177,11 @@ def plot_results(y_true, y_pred_ens, tag: str):
     ax.plot([lo, hi], [lo, hi], "k--", lw=1.5, label="y = x")
     ax.set_xlim(lo, hi)
     ax.set_ylim(lo, hi)
-    ax.set_xlabel("True Average Voltage (V)", fontsize=11)
-    ax.set_ylabel("Predicted Voltage (V)", fontsize=11)
-    ax.set_title(f"Voltage Prediction ({tag}, 5-fold OOF, n={len(y_true)})\n"
-                 f"MAE={mean_absolute_error(y_true, y_pred_ens):.3f}V  "
-                 f"RMSE={np.sqrt(mean_squared_error(y_true, y_pred_ens)):.3f}V  "
+    ax.set_xlabel(ylabel, fontsize=11)
+    ax.set_ylabel(ylabel.replace("True", "Predicted"), fontsize=11)
+    ax.set_title(f"Property Prediction ({tag}, 5-fold OOF, n={len(y_true)})\n"
+                 f"MAE={mean_absolute_error(y_true, y_pred_ens):.3f}{unit}  "
+                 f"RMSE={np.sqrt(mean_squared_error(y_true, y_pred_ens)):.3f}{unit}  "
                  f"R2={r2_score(y_true, y_pred_ens):.3f}", fontsize=10)
     ax.legend(loc="lower right")
     ax.grid(True, alpha=0.3)
@@ -251,8 +261,9 @@ def main(argv=None) -> int:
         return 2
     print(f"\nDataset: {len(df)} samples | unique formulas: {df['formula'].nunique()}")
     t = df[args.target]
-    print(f"Target: mean {t.mean():.3f} +/- {t.std():.3f} V | "
-          f"MAD {float((t - t.median()).abs().median()):.3f} V（中位数基线 MAE）")
+    prop, unit = TARGET_META.get(args.target, (args.target, ""))
+    print(f"Target {prop}: mean {t.mean():.3f} +/- {t.std():.3f} {unit} | "
+          f"MAD {float((t - t.median()).abs().median()):.3f} {unit}（中位数基线 MAE）")
 
     print("\nExtracting compositional features ...")
     X, y, groups, element_list = build_features(df, args.target, args.group_col)
@@ -260,20 +271,20 @@ def main(argv=None) -> int:
     print(f"Element universe: {len(element_list)} | features: {len(feature_names)}")
 
     print("\n5-fold cross-validation (random split) ...")
-    metrics, preds, ens_pred, fitted = evaluate_voltage(X, y)
+    metrics, preds, ens_pred, fitted = evaluate_voltage(X, y, unit)
 
-    group_metrics = evaluate_grouped(X, y, groups)
+    group_metrics = evaluate_grouped(X, y, groups, unit)
     if group_metrics:
         metrics["group_cv"] = group_metrics
 
     print("\nGenerating visualizations ...")
-    plot_results(y, ens_pred, args.tag)
+    plot_results(y, ens_pred, args.tag, args.target)
     plot_importance(fitted, feature_names, args.tag)
 
     save_results(metrics, preds, ens_pred, fitted, feature_names, element_list, y, args.tag)
 
     print("\n" + "=" * 60)
-    print(f"  Done. tag={args.tag}  MAE={metrics['Ensemble']['MAE']:.4f} V  "
+    print(f"  Done. tag={args.tag}  MAE={metrics['Ensemble']['MAE']:.4f} {unit}  "
           f"R2={metrics['Ensemble']['R2']:.4f}")
     print("=" * 60)
     return 0

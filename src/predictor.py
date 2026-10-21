@@ -48,6 +48,7 @@ MODEL_FILES = {
     "gap": "models_gap.pkl",
     "ef": "models_ef.pkl",
     "voltage": "models_voltage.pkl",
+    "capacity": "models_capacity.pkl",
 }
 
 
@@ -195,6 +196,21 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
             else:
                 result["voltage_level"] = "Low voltage (<3.5 V)"
 
+    # ---- 比容量（多目标：模型给出"可达容量"，无需事先知道 n_Li）----
+    if "capacity" in models:
+        pred, err = _safe_predict(models["capacity"], formula)
+        if err:
+            result["capacity_error"] = err
+        elif pred is None:
+            result["capacity_error"] = "Feature extraction failed"
+        else:
+            result.update({
+                "Capacity_RF_mAh_g": round(pred["rf"], 1),
+                "Capacity_HGB_mAh_g": round(pred["hgb"], 1),
+                "Capacity_ensemble_mAh_g": round(pred["ens"], 1),
+                "Capacity_spread": round(pred["spread"], 1),
+            })
+
     return result
 
 
@@ -203,8 +219,9 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
 # --------------------------------------------------------------------------- #
 APPROX_NOTE = (
     "[!] 成分级近似：电压模型训练于 Materials Project 插入电极真实数据"
-    "（average_voltage，n≈2.7k）；带隙/形成能模型训练于 matbench 公开数据"
-    "（实验带隙、钙钛矿 DFT 形成能），对锂电池体系仍属外推——负带隙即外推信号。"
+    "（average_voltage，n≈2.7k）与比容量（capacity_grav）；带隙/形成能模型训练于"
+    " matbench 公开数据（实验带隙、钙钛矿 DFT 形成能），对锂电池体系仍属外推——"
+    "跨口径外部验证显示形成能去偏移 MAE≈0.74 eV/atom、带隙 ρ≈0.33，请以风险标记为准。"
 )
 
 
@@ -228,7 +245,7 @@ def predict_material_properties(formulas: Union[str, List[str]],
 
     if models is None:
         models = load_models()
-    missing = [k for k in ("gap", "ef", "voltage") if k not in models]
+    missing = [k for k in ("gap", "ef", "voltage", "capacity") if k not in models]
     if verbose:
         print(f"正在预测 {len(formulas)} 个材料 ...")
         if missing:
@@ -243,10 +260,11 @@ def predict_material_properties(formulas: Union[str, List[str]],
     df = pd.DataFrame(results)
     main_cols = ["formula"]
     for col in ("Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Voltage_ensemble_V",
-                "conductivity", "stability", "voltage_level"):
+                "Capacity_ensemble_mAh_g", "conductivity", "stability", "voltage_level"):
         if col in df.columns:
             main_cols.append(col)
-    for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV", "Voltage_spread"):
+    for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV", "Voltage_spread",
+                "Capacity_spread"):
         if col in df.columns:
             main_cols.append(col)
     return df[[c for c in main_cols if c in df.columns]]
@@ -292,14 +310,16 @@ def screen_candidates(candidates_file: Union[str, Path, None] = None,
         }
         row.update({k: pred.get(k) for k in
                     ("Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Eform_per_atom_eV",
-                     "Voltage_ensemble_V")})
-        # 理论比容量
+                     "Voltage_ensemble_V", "Capacity_ensemble_mAh_g")})
+        # 理论比容量（物理定义，n_Li 已知时优先使用）
         try:
             counts = parse_formula(str(r["formula"]))
             n_li = float(r["nLi_extract"]) if "nLi_extract" in r else 1.0
             row["Q_theoretical_mAh_g"] = round(theoretical_capacity_mAh_g(counts, n_li), 1)
         except (ValueError, KeyError):
             row["Q_theoretical_mAh_g"] = np.nan
+        # 模型容量（任意化学式都可用；n_Li 缺失时作为评分依据）
+        row["Q_model_mAh_g"] = pred.get("Capacity_ensemble_mAh_g")
         rows.append(row)
 
     df = pd.DataFrame(rows)
@@ -311,8 +331,13 @@ def screen_candidates(candidates_file: Union[str, Path, None] = None,
     if {"Eform_per_atom_eV", "Egap_ensemble_eV"} <= set(df.columns):
         df["pct_stability"] = df["Eform_per_atom_eV"].rank(pct=True, ascending=False) * 100
         df["pct_conduction"] = np.exp(-df["Egap_ensemble_eV"].clip(lower=0)).rank(pct=True) * 100
-        if df["Q_theoretical_mAh_g"].notna().any():
-            df["pct_capacity"] = df["Q_theoretical_mAh_g"].rank(pct=True) * 100
+        cap_col = "Q_theoretical_mAh_g"
+        if not df[cap_col].notna().any() and "Q_model_mAh_g" in df.columns \
+                and df["Q_model_mAh_g"].notna().any():
+            cap_col = "Q_model_mAh_g"      # 物理容量不可得时用模型容量
+        df["Q_capacity_used_mAh_g"] = df[cap_col]
+        if df[cap_col].notna().any():
+            df["pct_capacity"] = df[cap_col].rank(pct=True) * 100
             w_stab, w_cond, w_cap = W_STAB, W_COND, W_CAP
         else:  # 无容量列时重新归一，避免总分只有 70
             df["pct_capacity"] = 0.0

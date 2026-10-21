@@ -38,17 +38,20 @@ PY_MODULES = [
     "predictor",
     "prepare_data",
     "prepare_mp_data",
+    "prepare_mp_summary",
     "screening",
+    "train_capacity",
     "train_ef",
     "train_gap",
     "train_voltage",
     "validate_known_cathodes",
+    "validate_mp_external",
     "voltage",
 ]
 
 setup(
     name="battery-cathode-ml",
-    version="1.2.0",
+    version="1.3.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

@@ -1,0 +1,79 @@
+{
+  "dataset": {
+    "source": "Materials Project summary (elements=['Li'])",
+    "n_rows": 8942,
+    "n_unique_formula": 8942
+  },
+  "gap": {
+    "note": "模型训练于实验带隙，MP 为 DFT-PBE；金属记 0 eV",
+    "all": {
+      "n": 8942,
+      "MAE": 1.1192,
+      "RMSE": 1.6152,
+      "R2": 0.035,
+      "spearman": 0.3319,
+      "bias_median": -0.1803,
+      "MAE_offset_corrected": 1.1032
+    },
+    "semiconductor_only": {
+      "n": 5983,
+      "MAE": 1.4472,
+      "RMSE": 1.8749,
+      "R2": -0.3322,
+      "spearman": 0.3864,
+      "bias_median": -0.9262,
+      "MAE_offset_corrected": 1.1816
+    },
+    "mp_mean_baseline_MAD": 1.3547,
+    "unseen_elements": [
+      "Ac",
+      "Np",
+      "Pa",
+      "Pu"
+    ]
+  },
+  "ef": {
+    "note": "模型目标为 5 原子单胞 e_form(RPBE)，已除以 5 换成 eV/atom；MP 为 GGA/GGA+U 元素参考态",
+    "all": {
+      "n": 8942,
+      "MAE": 2.205,
+      "RMSE": 2.3725,
+      "R2": -4.3903,
+      "spearman": 0.4751,
+      "bias_median": 2.41,
+      "MAE_offset_corrected": 0.7347
+    },
+    "mp_mean_baseline_MAD": 0.8052,
+    "unseen_elements": [
+      "Ac",
+      "Br",
+      "C",
+      "Ce",
+      "Cl",
+      "Dy",
+      "Er",
+      "Eu",
+      "Gd",
+      "H",
+      "Ho",
+      "I",
+      "Lu",
+      "Nd",
+      "Np",
+      "P",
+      "Pa",
+      "Pm",
+      "Pr",
+      "Pu",
+      "Se",
+      "Sm",
+      "Tb",
+      "Tc",
+      "Th",
+      "Tm",
+      "U",
+      "Xe",
+      "Yb"
+    ]
+  }
+}

@@ -3,6 +3,33 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-10-21
+
+**核心变化：多目标（比容量）+ 跨口径外部验证。**
+
+### 新增
+
+- `src/train_capacity.py`：比容量模型（复用 `train_voltage.py`，`--target capacity_grav --tag capacity`）
+  - 随机 5 折 OOF **MAE 25.2 mAh/g / R² 0.663**；GroupKFold **MAE 28.8 / R² 0.611**；
+    中位数基线 MAD 47.8 mAh/g（相对降低约 47%）
+  - 抽检：LiCoO₂ 预测 273.9（理论 273.8）、LiFePO₄ 165.0（理论 169.9）
+- `src/prepare_mp_summary.py`：MP 摘要清洗为外部验证集
+  （20,000 → 按成分去重保留最稳定相 → **8,942 条**，落盘 `data/processed/mp_summary_Li.csv.gz` 并入库）
+- `src/validate_mp_external.py`：**跨口径**外部验证
+  - 形成能：原始 MAE 2.205 eV/atom；系统偏移 **+2.410**；**去偏移 MAE 0.735 eV/atom**（基线 MAD 0.805）；**ρ 0.475**
+  - 带隙：MAE 1.119 eV、ρ 0.332（模型训练于实验带隙，MP 为 DFT-PBE）
+  - 明确记录为**域外推能力有限的负面结果**，作为引入结构模型（CGCNN）的直接证据
+- `tests/test_multiobjective.py`（10 例）：容量训练参数注入、predictor 容量列、摘要清洗去重规则、外部验证指标（去偏移 MAE / Spearman）
+
+### 变更
+
+- `predictor` 支持容量模型：输出 `Capacity_ensemble_mAh_g` / `Capacity_spread`；
+  候选筛选在缺 `nLi_extract` 时用模型容量参与评分（理论容量可用时仍优先）
+- `train_voltage.py` 单位/标签按目标切换（V / mAh/g），绘图标题与打印不再写死「电压」
+- `fetch_mp_battery.py` 修复摘要分页 bug（原实现循环调用同一 `search` 会重复取第一页），并加入 material_id 去重
+- CI smoke 增加：真实数据训练容量模型 → MP 跨口径外部验证 → 产物校验
+- README / 项目报告新增附录 D / 项目总结 同步；测试 86 → **96**；版本 1.2.0 → 1.3.0
+
 ## [1.2.0] - 2026-10-21
 
 **核心变化：电压模型从合成演示数据切换到 Materials Project 真实数据。**

@@ -121,31 +121,32 @@ def fetch_electrodes(key: str, working_ion: str) -> "list[dict]":
 
 
 def fetch_summary(key: str, max_rows: int, elements: list[str]) -> "list[dict]":
-    """拉取含指定元素的材料摘要（用于外部验证）。max_rows=0 表示不限。"""
+    """拉取含指定元素的材料摘要（用于外部验证）。max_rows=0 表示不限。
+
+    注意：mp-api 的 ``num_chunks``/``chunk_size`` 才是分页机制；循环调用同一个
+    ``search`` 只会重复拿第一页，所以这里一次性按需要的页数取。
+    """
     from mp_api.client import MPRester
 
     print(f"[GET] summary elements={elements} (max_rows={max_rows or 'all'}) ...")
-    rows = []
     with MPRester(key) as mpr:
         if max_rows:
-            chunk = min(max_rows, 1000)
-            remaining = max_rows
-            while remaining > 0:
-                n = min(chunk, remaining)
-                docs = mpr.materials.summary.search(
-                    elements=elements, fields=SUMMARY_FIELDS,
-                    num_chunks=1, chunk_size=n)
-                if not docs:
-                    break
-                for d in docs:
-                    rows.append({f: getattr(d, f, None) for f in SUMMARY_FIELDS})
-                remaining -= len(docs)
-                print(f"      ... 已取 {len(rows)} 条")
-                if len(docs) < n:
-                    break
+            chunk_size = 1000
+            num_chunks = max(1, (max_rows + chunk_size - 1) // chunk_size)
+            docs = mpr.materials.summary.search(
+                elements=elements, fields=SUMMARY_FIELDS,
+                num_chunks=num_chunks, chunk_size=chunk_size)
         else:
             docs = mpr.materials.summary.search(elements=elements, fields=SUMMARY_FIELDS)
-            rows = [{f: getattr(d, f, None) for f in SUMMARY_FIELDS} for d in docs]
+
+    rows = []
+    seen = set()
+    for d in docs:
+        mid = getattr(d, "material_id", None)
+        if mid in seen:          # 防御性去重（分页边界偶发重复）
+            continue
+        seen.add(mid)
+        rows.append({f: getattr(d, f, None) for f in SUMMARY_FIELDS})
     print(f"[OK ] {len(rows)} 条材料摘要")
     return rows
 

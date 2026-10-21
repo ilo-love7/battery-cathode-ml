@@ -101,8 +101,21 @@ jobs:
       - name: Train voltage model on real MP data
         run: python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
 
+      - name: Train capacity model (multi-objective)
+        run: python src/train_capacity.py
+
+      - name: Download matbench data and train gap/ef models
+        run: |
+          python src/download_data.py
+          python src/prepare_data.py
+          python src/train_gap.py
+          python src/train_ef.py
+
       - name: External validation on known cathodes
         run: python src/validate_known_cathodes.py
+
+      - name: External validation on MP Li materials
+        run: python src/validate_mp_external.py
 
       - name: CLI prediction smoke test
         run: |
@@ -112,10 +125,14 @@ jobs:
       - name: Verify artifacts
         run: |
           test -f data/processed/mp_voltage.csv
+          test -f data/processed/mp_summary_Li.csv.gz
           test -f results/metrics_voltage.json
           test -f results/parity_voltage.png
           test -f results/importance_voltage.png
+          test -f results/metrics_capacity.json
+          test -f results/parity_capacity.png
           test -f results/validation_known_cathodes.csv
+          test -f results/validation_mp_external.json
           echo "Pipeline smoke test passed."
 
       - name: Upload results
@@ -127,7 +144,10 @@ jobs:
             results/metrics_voltage.json
             results/parity_voltage.png
             results/importance_voltage.png
+            results/metrics_capacity.json
+            results/parity_capacity.png
             results/validation_known_cathodes.csv
+            results/validation_mp_external.json
           if-no-files-found: ignore
 
   security:
