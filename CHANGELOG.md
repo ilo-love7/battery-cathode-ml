@@ -3,6 +3,17 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.2] - 2026-10-21
+
+### 修复
+
+- **冒烟抽样会覆盖全量产物**：`train_ef_struct.py --subset` 默认复用 tag `ef_struct`，
+  导致 `results/oof_ef_struct.csv`（18,928 行）与 `metrics_ef_struct.json` 被 4,000 条抽样结果覆盖。
+  现在 `--subset` 未显式指定 `--tag` 时自动改用 `ef_struct_smoke`，全量产物不会被污染；
+  CI 也相应改为校验/上传 `*_smoke` 制品。
+- 已用全量运行恢复 `results/metrics_ef_struct.json`、`oof_ef_struct.csv`、
+  `parity_ef_struct.png`、`importance_ef_struct.png`（数字与附录 E 一致）。
+
 ## [1.4.1] - 2026-10-21
 
 ### 变更

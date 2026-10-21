@@ -148,7 +148,7 @@ jobs:
           test -f results/conformal_voltage.json
           test -f results/conformal_capacity.json
           test -f results/calibration_voltage.png
-          test -f results/metrics_ef_struct.json
+          test -f results/metrics_ef_struct_smoke.json
           echo "Pipeline smoke test passed."
 
       - name: Upload results
@@ -167,8 +167,8 @@ jobs:
             results/conformal_voltage.json
             results/conformal_capacity.json
             results/calibration_voltage.png
-            results/metrics_ef_struct.json
-            results/parity_ef_struct.png
+            results/metrics_ef_struct_smoke.json
+            results/parity_ef_struct_smoke.png
           if-no-files-found: ignore
 
   security:

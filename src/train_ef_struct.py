@@ -152,6 +152,11 @@ def main(argv=None) -> int:
         return 2
 
     df = pd.read_csv(path, encoding="utf-8-sig")
+    # 冒烟模式默认写独立的 tag，避免抽样结果覆盖全量产物（曾发生）
+    if args.subset and args.tag == "ef_struct":
+        args.tag = "ef_struct_smoke"
+        print("[冒烟模式] 输出 tag 改为 ef_struct_smoke（不覆盖全量产物）")
+
     if args.subset and args.subset < len(df):
         df = df.sample(n=args.subset, random_state=RNG).reset_index(drop=True)
         print(f"[冒烟模式] 随机抽样 {args.subset} 条（指标仅供流程校验，勿用于报数）")

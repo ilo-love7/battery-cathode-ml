@@ -55,7 +55,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.4.1",
+    version="1.4.2",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",
