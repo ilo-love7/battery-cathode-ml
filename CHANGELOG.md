@@ -3,6 +3,30 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-10-21
+
+### 修复
+
+- `screening.py` 文档字符串写「42 个候选」，实际数据为 40 个。
+- 元素宇宙缓存无失效条件：重新生成 `data/processed/*.csv` 后仍会沿用旧宇宙，
+  导致域内外标记错误。现缓存带数据指纹（文件大小），数据变化后自动重算。
+- `predictor.py`：模型束损坏（如旧版 pkl 缺 `feature_names`）时整批预测直接抛异常，
+  现改为记录 `*_error` 字段并继续处理其余材料。
+- `run_pipeline.py --fast`：跳过形成能模型训练后，候选筛选仍会被执行并因缺模型失败，
+  让整个流程报「部分失败」。现在检测模型是否就绪，未就绪则跳过筛选并说明原因。
+
+### 新增
+
+- `tests/test_element_data.py`：元素表硬约束（118 个元素、Z 连续、符号唯一、参考质量/电负性、取值范围）。
+- `tests/test_docs.py`：Markdown 相对链接与文档中引用的 `src/*.py` 必须真实存在（防文档腐烂）。
+- `tests/test_formula.py`：`canonical_formula` → `parse_formula` 往返一致性。
+- `predictor` 测试：模型束损坏时批量预测不中断。
+
+### 变更
+
+- 测试数量 39 → 80。
+- 版本号 1.1.0 → 1.1.1。
+
 ## [1.1.0] - 2026-10-21
 
 ### 修复（重要）

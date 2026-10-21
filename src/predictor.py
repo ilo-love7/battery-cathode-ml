@@ -98,6 +98,14 @@ def _predict_ensemble(bundle: dict, formula: str) -> Optional[dict]:
     return {"rf": rf, "hgb": hgb, "ens": 0.5 * (rf + hgb), "spread": abs(rf - hgb) / 2.0}
 
 
+def _safe_predict(bundle: dict, formula: str):
+    """容错版预测：返回 (pred, error)。模型束损坏时不打断批量预测。"""
+    try:
+        return _predict_ensemble(bundle, formula), None
+    except (ValueError, KeyError, AttributeError) as exc:  # noqa: BLE001
+        return None, f"模型束不可用: {exc}"
+
+
 # --------------------------------------------------------------------------- #
 # 单材料预测
 # --------------------------------------------------------------------------- #
@@ -124,8 +132,10 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
 
     # ---- 带隙 ----
     if "gap" in models:
-        pred = _predict_ensemble(models["gap"], formula)
-        if pred is None:
+        pred, err = _safe_predict(models["gap"], formula)
+        if err:
+            result["gap_error"] = err
+        elif pred is None:
             result["gap_error"] = "Feature extraction failed"
         else:
             result.update({
@@ -143,8 +153,10 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
 
     # ---- 形成能 ----
     if "ef" in models:
-        pred = _predict_ensemble(models["ef"], formula)
-        if pred is None:
+        pred, err = _safe_predict(models["ef"], formula)
+        if err:
+            result["ef_error"] = err
+        elif pred is None:
             result["ef_error"] = "Feature extraction failed"
         else:
             atoms = float(sum(counts.values()))
@@ -164,8 +176,10 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
 
     # ---- 平均电压 ----
     if "voltage" in models:
-        pred = _predict_ensemble(models["voltage"], formula)
-        if pred is None:
+        pred, err = _safe_predict(models["voltage"], formula)
+        if err:
+            result["voltage_error"] = err
+        elif pred is None:
             result["voltage_error"] = "Feature extraction failed"
         else:
             result.update({

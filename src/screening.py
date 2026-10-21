@@ -2,7 +2,7 @@
 """候选正极成分筛选（集成预测 + 不确定性 + 域检查 + 理论容量）。
 
 流程:
-1) 读入 data/cathode_candidates.csv（42 个候选正极成分，含家族/可脱锂数/文献电压）；
+1) 读入 data/cathode_candidates.csv（40 个候选正极成分，含家族/可脱锂数/文献电压）；
 2) 用 models_gap.pkl 与 models_ef.pkl 预测带隙与形成能（RF+HGB 集成，离散度作不确定性）；
 3) 域检查: 候选成分的每种元素是否出现在训练集元素宇宙中（出现与否 -> 域内/域外标记）；
 4) 理论比容量 Q = n_Li * F/3.6 / M (mAh/g)；
@@ -36,17 +36,25 @@ W_STAB, W_COND, W_CAP = 0.40, 0.30, 0.30
 
 
 def training_element_universe():
-    """两个训练集元素宇宙的并集（结果缓存到 results/，避免每次重解析 2 万条化学式）。"""
+    """两个训练集元素宇宙的并集（缓存到 results/，避免每次重解析 2 万条化学式）。
+
+    缓存带数据指纹（文件大小），重新生成 processed CSV 后会自动失效。
+    """
+    sources = [ROOT / "data/processed/expt_gap.csv",
+               ROOT / "data/processed/perovskites_ef.csv"]
+    fingerprint = ";".join(f"{p.name}:{p.stat().st_size}" for p in sources if p.exists())
+
     cache = OUT / "training_universe.json"
     if cache.exists():
         try:
-            return set(json.loads(cache.read_text(encoding="utf-8")))
-        except (OSError, ValueError):
+            data = json.loads(cache.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("fingerprint") == fingerprint:
+                return set(data["elements"])
+        except (OSError, ValueError, KeyError):
             pass
 
     universe = set()
-    for csv in ["data/processed/expt_gap.csv", "data/processed/perovskites_ef.csv"]:
-        path = ROOT / csv
+    for path in sources:
         if not path.exists():
             continue
         df = pd.read_csv(path)
@@ -58,7 +66,9 @@ def training_element_universe():
 
     try:
         cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(json.dumps(sorted(universe), ensure_ascii=False), encoding="utf-8")
+        cache.write_text(json.dumps({"fingerprint": fingerprint,
+                                     "elements": sorted(universe)},
+                                    ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
     return universe
@@ -67,8 +77,16 @@ def training_element_universe():
 def predict_with_bundle(bundle, comps):
     """用保存的模型束预测 (ensemble, spread)。特征列与训练时一致。"""
     els = bundle.get("element_list")
-    X = pd.DataFrame([featurize_one(c, element_list=els) for c in comps],
-                     columns=bundle["feature_names"])
+    names = bundle.get("feature_names")
+    if not names:
+        raise ValueError("模型束缺少 feature_names；请用当前版本脚本重新训练")
+
+    feats = [featurize_one(c, element_list=els) for c in comps]
+    bad = [c for c, f in zip(comps, feats) if f is None]
+    if bad:
+        raise ValueError(f"以下候选无法特征化: {bad}")
+
+    X = pd.DataFrame(feats, columns=names)
     rf = bundle["models"]["RF"].predict(X)
     hgb = bundle["models"]["HGB"].predict(X)
     return 0.5 * (rf + hgb), np.abs(rf - hgb) / 2.0

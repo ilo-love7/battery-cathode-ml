@@ -62,6 +62,12 @@ def check_prerequisites(skip_data: bool) -> bool:
     return True
 
 
+def models_ready() -> bool:
+    """候选筛选依赖带隙 + 形成能两个模型束。"""
+    return all((ROOT / "results" / name).exists()
+               for name in ("models_gap.pkl", "models_ef.pkl"))
+
+
 def run_script(script_name: str, description: str) -> bool:
     """运行 src/ 下的一个脚本，返回是否成功。"""
     print(f"\n{'=' * 70}")
@@ -125,6 +131,10 @@ def main(argv=None) -> int:
     # 步骤 3：候选筛选
     if args.skip_screening:
         print("\n[SKIP] 候选筛选")
+    elif not models_ready():
+        print("\n[SKIP] 候选筛选：缺少 results/models_gap.pkl 或 models_ef.pkl")
+        print("        评分依赖这两个模型（--fast / --skip-training 可能未生成），")
+        print("        先训练它们再重跑本步骤即可。")
     else:
         ok &= run_script("screening.py", "步骤 3: 候选正极材料筛选")
 

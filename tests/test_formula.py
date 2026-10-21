@@ -71,3 +71,22 @@ class TestFormulaParsing:
         assert parse_formula("O2-") == {"O": 1.0}
         # 带 ^ 记法
         assert parse_formula("SO4^2-") == {"S": 1.0, "O": 4.0}
+
+
+class TestCanonicalRoundtrip:
+    """canonical_formula 的输出必须能被 parse_formula 原样解析回来。"""
+
+    @pytest.mark.parametrize("formula", [
+        "LiFePO4",
+        "Li3V2(PO4)3",
+        "LiNi0.8Co0.1Mn0.1O2",
+        "Ba5(AsO4)3(OH,F)",
+        "Li2FeSiO4",
+        "LiNi0.33Co0.33Mn0.34O2",
+    ])
+    def test_roundtrip_preserves_composition(self, formula):
+        counts = parse_formula(formula)
+        again = parse_formula(canonical_formula(counts))
+        assert set(again) == set(counts)
+        for element, amount in counts.items():
+            assert again[element] == pytest.approx(amount, abs=1e-6)

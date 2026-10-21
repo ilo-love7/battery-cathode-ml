@@ -108,3 +108,15 @@ class TestBatchPredict:
     def test_empty_input_raises(self):
         with pytest.raises(ValueError):
             P.predict_material_properties([], models={}, verbose=False)
+
+    def test_broken_bundle_does_not_crash_batch(self):
+        """模型束缺 feature_names 时应记录错误，而不是让整批预测抛异常。"""
+        broken = {"models": {"RF": _EchoColumnModel(), "HGB": _EchoColumnModel()},
+                  "element_list": ELEMENTS}
+        out = P.predict_single("LiCoO2", {"gap": broken})
+        assert "gap_error" in out
+        assert "Egap_ensemble_eV" not in out
+
+        df = P.predict_material_properties(
+            ["LiCoO2", "LiFePO4"], models={"gap": broken}, verbose=False)
+        assert len(df) == 2  # 批量流程不中断

@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 39 个单元测试，含「特征列顺序」回归测试（防静默错位）
+- 80 个单元测试，含「特征列顺序」回归测试、元素表完整性、文档链接一致性检查
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -232,7 +232,7 @@ battery-cathode-ml/
 │   ├── fetch_mp_data.py         # MP API 拉取（可选）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 39 个单元测试
+├── tests/                       # 80 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -260,7 +260,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 39 个测试
+pytest tests/ -v                                             # 80 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 ```
@@ -287,7 +287,7 @@ CI（`.github/workflows/ci.yml`）包含：语法门禁 → lint/format（非阻
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.1.0}
+  version = {1.1.1}
 }
 ```
 
