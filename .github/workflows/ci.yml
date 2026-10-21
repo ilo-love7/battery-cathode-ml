@@ -104,12 +104,16 @@ jobs:
       - name: Train capacity model (multi-objective)
         run: python src/train_capacity.py
 
-      - name: Download matbench data and train gap/ef models
+      - name: Train gap/ef models (from committed processed CSV)
         run: |
-          python src/download_data.py
-          python src/prepare_data.py
+          test -f data/processed/expt_gap.csv
+          test -f data/processed/perovskites_ef.csv
           python src/train_gap.py
           python src/train_ef.py
+
+      - name: Probe matbench download URL (non-blocking)
+        continue-on-error: true
+        run: python src/download_data.py
 
       - name: External validation on known cathodes
         run: python src/validate_known_cathodes.py

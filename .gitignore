@@ -101,3 +101,7 @@ data/raw/mp_*.csv
 
 # 但保留清洗后的真实电压数据集：没有 API Key 也能复现真实指标
 !data/processed/mp_voltage.csv
+
+# 清洗后的 matbench CSV 也入库：让 CI / 离线环境无需下载即可训练带隙与形成能模型
+!data/processed/expt_gap.csv
+!data/processed/perovskites_ef.csv

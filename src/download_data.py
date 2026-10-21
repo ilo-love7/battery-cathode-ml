@@ -61,8 +61,14 @@ def download_one(name: str, base_url: str, timeout: int, force: bool = False) ->
     url = f"{base_url.rstrip('/')}/{name}"
     tmp = dest.with_suffix(dest.suffix + ".part")
     print(f"[GET ] {url}")
+    # 带上浏览器式 UA：部分 CDN 会对默认的 "Python-urllib/x.y" 返回 403
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; battery-cathode-ml/1.3; "
+                      "+https://github.com/ilo-love7/battery-cathode-ml)",
+        "Accept": "*/*",
+    })
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp, open(tmp, "wb") as out:
+        with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as out:
             total = int(resp.headers.get("Content-Length") or 0)
             done = 0
             while True:
@@ -79,6 +85,10 @@ def download_one(name: str, base_url: str, timeout: int, force: bool = False) ->
         print(f"[FAIL] {name}: {exc}")
         print("       可手动下载后放入 data/raw/：")
         print(f"       {url}")
+        if "403" in str(exc) or "Forbidden" in str(exc):
+            print("       提示：403 常见于云主机/CI 出口 IP 被 CDN 拦截；")
+            print("             本仓库已随包提供清洗后的 data/processed/*.csv，")
+            print("             可直接跳到 python src/train_gap.py && python src/train_ef.py。")
         return False
 
     size = tmp.stat().st_size
