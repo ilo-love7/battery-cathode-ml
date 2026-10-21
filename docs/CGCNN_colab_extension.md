@@ -52,6 +52,8 @@ files.upload()                     # 选择 cgcnn_data.zip
 !unzip -q cgcnn_data.zip -d data
 
 # 3) 训练 (回归目标列 1 = e_form; 任务类型 regression)
+#    注意单位: 导出时默认 --scale atom 已把 matbench 原始 eV/胞 除以位点数,
+#    因此 id_prop.csv 里的 target 是 eV/atom, 与下面报的 MAE 口径一致。
 !python main.py --train-size 0.8 --val-size 0.1 --test-size 0.1 \
     --epochs 60 --task regression --disable-cuda false \
     --data-path data/cgcnn_data --train-ratio None --val-ratio None --test-ratio None
