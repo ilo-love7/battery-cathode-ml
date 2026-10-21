@@ -3,6 +3,22 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-10-21
+
+### 修复
+
+- **CI smoke 失败**：GitHub Actions 出口 IP 访问 `ml.materialsproject.org` 被 CDN 返回
+  **403 Forbidden**（本机 / 家宽正常）。现在把清洗后的 `data/processed/expt_gap.csv`、
+  `perovskites_ef.csv` 一并入库，CI 与离线环境**无需下载**即可训练带隙/形成能模型；
+  下载步骤在 CI 中保留为**非阻断探针**（继续监测官方 URL 可用性）。
+- `download_data.py` 改用浏览器式 `User-Agent`（缓解 UA 类 403），并在 403 时打印
+  可执行的替代路径提示。
+
+### 说明
+
+- 主干流程现在完全可离线复现：电压/容量用 `mp_voltage.csv`，带隙/形成能用两个 processed CSV，
+  外部验证用 `mp_summary_Li.csv.gz`；只有"从零重放官方下载"才需要外网。
+
 ## [1.3.0] - 2026-10-21
 
 **核心变化：多目标（比容量）+ 跨口径外部验证。**
