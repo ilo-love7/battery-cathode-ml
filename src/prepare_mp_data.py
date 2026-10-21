@@ -112,6 +112,10 @@ def main(argv=None) -> int:
             "framework_formula": r.get("framework_formula"),
             "battery_type": r.get("battery_type"),
             "battery_formula": r.get("battery_formula"),
+            # 结构侧消歧需要：脱锂相（id_charge）与嵌锂相（id_discharge）的 material_id
+            "id_charge": r.get("id_charge"),
+            "id_discharge": r.get("id_discharge"),
+            "max_delta_volume": r.get("max_delta_volume"),
         })
 
     out = pd.DataFrame(rows)

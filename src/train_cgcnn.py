@@ -88,81 +88,18 @@ def load_graphs(raw: Path, limit: int = 0, cutoff: float = CUTOFF,
 
 
 def batch_tensors(graphs, idx, device, target=None):
-    """把一批图拼成 (atom_fea, edge_fea, edge_src, edge_dst, batch_idx) 张量。"""
-    import torch
-
-    node, efea, src, dst, bvec = [], [], [], [], []
-    a_off = 0
-    for b, i in enumerate(idx):
-        g = graphs[i]
-        n = int(g["n_atoms"])
-        node.append(torch.as_tensor(g["node_feat"]))
-        efea.append(torch.as_tensor(g["edge_feat"]))
-        src.append(torch.as_tensor(g["edge_src"] + a_off))
-        dst.append(torch.as_tensor(g["edge_dst"] + a_off))
-        bvec.append(torch.full((n,), b, dtype=torch.long))
-        a_off += n
-
-    out = (torch.cat(node), torch.cat(efea), torch.cat(src), torch.cat(dst), torch.cat(bvec))
-    out = tuple(t.to(device, non_blocking=True) for t in out)
-    if target is None:
-        return out
-    y = torch.as_tensor(np.asarray(target, dtype=np.float32), device=device)
-    return out, y
+    """已抽到 cgcnn_model.py 共享（避免与 MP 域训练脚本重复）。"""
+    from cgcnn_model import batch_tensors as _bt
+    return _bt(graphs, idx, device, target)
 
 
 # --------------------------------------------------------------------------- #
 # 模型
 # --------------------------------------------------------------------------- #
 def build_model(atom_fea_len: int, n_conv: int, h_fea_len: int, n_h: int):
-    import torch
-    import torch.nn as nn
-
-    class ConvLayer(nn.Module):
-        """CGCNN 门控卷积（扁平边索引 + index_add 聚合）。"""
-
-        def __init__(self, atom_fea_len: int, nbr_fea_len: int):
-            super().__init__()
-            self.fc_full = nn.Linear(2 * atom_fea_len + nbr_fea_len, 2 * atom_fea_len)
-            self.bn1 = nn.BatchNorm1d(2 * atom_fea_len)
-            self.bn2 = nn.BatchNorm1d(atom_fea_len)
-            self.softplus = nn.Softplus()
-            self.sigmoid = nn.Sigmoid()
-
-        def forward(self, x, edge_feat, src, dst):
-            total = torch.cat([x[src], x[dst], edge_feat], dim=1)
-            full = self.bn1(self.fc_full(total))
-            gate, core = torch.chunk(full, 2, dim=1)
-            msg = self.sigmoid(gate) * self.softplus(self.bn2(core))
-            aggr = torch.zeros_like(x).index_add_(0, dst, msg)
-            return x + aggr
-
-    class CrystalGraphConvNet(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.embedding = nn.Linear(ATOM_FEAT_DIM, atom_fea_len)
-            self.convs = nn.ModuleList(
-                [ConvLayer(atom_fea_len, EDGE_FEAT_DIM) for _ in range(n_conv)])
-            self.fc_in = nn.Linear(atom_fea_len, h_fea_len)
-            self.fcs = nn.ModuleList([nn.Linear(h_fea_len, h_fea_len) for _ in range(n_h)])
-            self.fc_out = nn.Linear(h_fea_len, 1)
-            self.softplus = nn.Softplus()
-
-        def forward(self, atom_fea, edge_fea, edge_src, edge_dst, batch_idx):
-            x = self.embedding(atom_fea)
-            for conv in self.convs:
-                x = conv(x, edge_fea, edge_src, edge_dst)
-            n_crystals = int(batch_idx.max().item()) + 1
-            pooled = torch.zeros(n_crystals, x.shape[1], device=x.device).index_add_(0, batch_idx, x)
-            counts = torch.zeros(n_crystals, device=x.device).index_add_(
-                0, batch_idx, torch.ones_like(batch_idx, dtype=torch.float))
-            pooled = pooled / counts.unsqueeze(1)
-            h = self.softplus(self.fc_in(pooled))
-            for fc in self.fcs:
-                h = self.softplus(fc(h))
-            return self.fc_out(h).squeeze(1)
-
-    return CrystalGraphConvNet()
+    """模型定义已抽到 cgcnn_model.py（与 MP 域训练/推理共用）。"""
+    from cgcnn_model import build_model as _build
+    return _build(atom_fea_len, n_conv, h_fea_len, n_h)
 
 
 # --------------------------------------------------------------------------- #

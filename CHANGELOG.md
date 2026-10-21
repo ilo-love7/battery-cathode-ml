@@ -3,6 +3,51 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.0] - 2026-10-21
+
+**核心变化：CGCNN 从「评估集模型」变成「可推理的工具」，并把结构信息用到电压任务上。**
+
+### 新增
+
+- `src/cgcnn_model.py`：把 CGCNN 模型定义抽出（perovskites 训练 / MP 训练 / 推理三处共用）；
+  `train_cgcnn.py` 的 `batch_tensors` 一并共用，消除重复
+- `src/fetch_mp_structures.py`：从 MP 拉**晶体结构**，三种模式
+  - `--mode li`：含 Li 材料摘要 + 结构 + 每原子形成能（CGCNN 训练集）
+  - `--mode formulas`：按化学式取**最稳定结构**（推理用）
+  - `--mode ids` / `--ids-file`：按 material_id 批量取（电压侧消歧用；5344 个 id 实测 7.8 MB）
+- `src/train_cgcnn_mp.py`：CGCNN 训练于 **MP 含 Li 材料**（目标 eV/atom），自带成分基线对照
+
+  | 数据 | test MAE (eV/atom) | 同数据成分基线 | 提升 | 用时 |
+  |---|---|---|---|---|
+  | 3,000 条（**随仓库分发**，`data/processed/mp_structures_Li.json.gz`） | **0.1921** | 0.2750 | 1.4× | 113 s |
+  | 8,000 条（本地 `--mode li` 拉取） | **0.0962** | 0.1813 | 1.9× | 286 s |
+
+- `src/predict_cgcnn.py`：**CGCNN 推理 CLI**（结构 → 每原子形成能）
+  - 支持 `--structures`（结构文件，仓库内 10 个常见正极 demo 可离线跑）与 `--formulas`（联网取最稳定结构）
+  - 实测：10 个常见正极 MAE 0.058 eV/atom；其中 5 条**不在训练集内**，干净外推 MAE **0.0896 eV/atom**
+- `src/prepare_voltage_struct.py` + `src/train_voltage_struct.py`：**电压侧结构消歧**
+  - 给电压数据补 44 维结构特征：嵌锂相/脱锂相各 21 维几何描述符 + 脱锂收缩率 + 原子数差
+  - 结果：随机 5 折 MAE **0.4187 → 0.4082 V**（R² 0.682 → 0.705）；
+    GroupKFold（按框架分组）**0.4733 → 0.4449 V**；结构特征占 RF 重要性 **32%**
+  - 只用结构特征反而更差（0.5731 V）：电压主要由成分/氧化还原决定，结构是改良项
+- `tests/test_voltage_struct.py`（5 例）：结构特征拼接、单相记录的 NaN 处理、缺失文件错误码、
+  量结构表可用性、CLI 接口
+
+### 变更
+
+- `prepare_mp_data.py` 保留 `id_charge` / `id_discharge` / `max_delta_volume`（结构侧消歧所需）
+- `data/processed/mp_voltage_struct.csv.gz`（0.97 MB）与 `data/processed/mp_structures_Li.json.gz`（3.5 MB）
+  随仓库分发 → 无 API Key 也能复现结构与电压实验
+- CI 增加「电压结构消歧（冒烟子集）」步骤与产物校验
+- README 新增「MP 域 CGCNN 与推理 CLI」小节；项目报告新增附录 G
+- 测试 130 → **135**；版本 1.5.2 → 1.6.0
+
+### 注意事项（诚实记录）
+
+- `predict_cgcnn.py` 的 demo 结构中 8/10 出现在 8,000 条训练池里，**整体 MAE 0.058 有污染**；
+  干净的 5 条外推样本 MAE 为 0.0896，训练脚本自带的 held-out 划分（0.0962 @8k）才是无偏指标
+- 电压结构消歧的增益有限（随机 2.5%、分组 6%）：该任务的内禀噪声来自**电化学区间**而非几何
+
 ## [1.5.2] - 2026-10-21
 
 ### 修复

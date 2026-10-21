@@ -1,0 +1,137 @@
+{
+  "mode": "full",
+  "n_samples": 2672,
+  "n_unique_compositions": 1794,
+  "struct_features": 44,
+  "reference_comp_only": {
+    "comp_random": 0.4187,
+    "comp_group": 0.4806
+  },
+  "summary": {
+    "comp": {
+      "random": {
+        "MAE": 0.4187,
+        "RMSE": 0.6199,
+        "R2": 0.6821
+      },
+      "group": {
+        "MAE": 0.4733,
+        "RMSE": 0.6715,
+        "R2": 0.6269
+      }
+    },
+    "struct": {
+      "random": {
+        "MAE": 0.5731,
+        "RMSE": 0.7768,
+        "R2": 0.5008
+      }
+    },
+    "comp+struct": {
+      "random": {
+        "MAE": 0.4082,
+        "RMSE": 0.5971,
+        "R2": 0.7051
+      },
+      "group": {
+        "MAE": 0.4449,
+        "RMSE": 0.6256,
+        "R2": 0.6762
+      }
+    }
+  },
+  "full_metrics": {
+    "comp": {
+      "random": {
+        "RF": {
+          "MAE": 0.4319,
+          "RMSE": 0.6346,
+          "R2": 0.6669
+        },
+        "HGB": {
+          "MAE": 0.4195,
+          "RMSE": 0.6254,
+          "R2": 0.6765
+        },
+        "Ensemble": {
+          "MAE": 0.4187,
+          "RMSE": 0.6199,
+          "R2": 0.6821
+        }
+      },
+      "group": {
+        "RF": {
+          "MAE": 0.4911,
+          "RMSE": 0.6891,
+          "R2": 0.6072
+        },
+        "HGB": {
+          "MAE": 0.4776,
+          "RMSE": 0.6802,
+          "R2": 0.6173
+        },
+        "Ensemble": {
+          "MAE": 0.4733,
+          "RMSE": 0.6715,
+          "R2": 0.6269
+        }
+      }
+    },
+    "struct": {
+      "random": {
+        "RF": {
+          "MAE": 0.5839,
+          "RMSE": 0.7848,
+          "R2": 0.4904
+        },
+        "HGB": {
+          "MAE": 0.5834,
+          "RMSE": 0.7935,
+          "R2": 0.4791
+        },
+        "Ensemble": {
+          "MAE": 0.5731,
+          "RMSE": 0.7768,
+          "R2": 0.5008
+        }
+      }
+    },
+    "comp+struct": {
+      "random": {
+        "RF": {
+          "MAE": 0.4343,
+          "RMSE": 0.6256,
+          "R2": 0.6762
+        },
+        "HGB": {
+          "MAE": 0.405,
+          "RMSE": 0.5941,
+          "R2": 0.708
+        },
+        "Ensemble": {
+          "MAE": 0.4082,
+          "RMSE": 0.5971,
+          "R2": 0.7051
+        }
+      },
+      "group": {
+        "RF": {
+          "MAE": 0.4748,
+          "RMSE": 0.6595,
+          "R2": 0.6402
+        },
+        "HGB": {
+          "MAE": 0.4363,
+          "RMSE": 0.6163,
+          "R2": 0.6858
+        },
+        "Ensemble": {
+          "MAE": 0.4449,
+          "RMSE": 0.6256,
+          "R2": 0.6762
+        }
+      }
+    }
+  },
+  "best": "comp+struct"
+}

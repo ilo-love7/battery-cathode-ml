@@ -105,3 +105,6 @@ data/raw/mp_*.csv
 # 清洗后的 matbench CSV 也入库：让 CI / 离线环境无需下载即可训练带隙与形成能模型
 !data/processed/expt_gap.csv
 !data/processed/perovskites_ef.csv
+
+# CGCNN 推理用的 demo 结构（10 个常见正极，体积很小，便于离线演示）
+!data/raw/mp_structures_cathodes.json.gz

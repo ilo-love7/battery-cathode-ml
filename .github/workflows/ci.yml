@@ -126,6 +126,9 @@ jobs:
       - name: CGCNN CLI interface check (no torch needed)
         run: python src/train_cgcnn.py --help
 
+      - name: Voltage structure disambiguation (smoke subset, CPU)
+        run: python src/train_voltage_struct.py --subset 800 --skip-group
+
       - name: External validation on known cathodes
         run: python src/validate_known_cathodes.py
 
@@ -152,6 +155,7 @@ jobs:
           test -f results/conformal_capacity.json
           test -f results/calibration_voltage.png
           test -f results/metrics_ef_struct_smoke.json
+          test -f results/metrics_voltage_struct_smoke.json
           echo "Pipeline smoke test passed."
 
       - name: Upload results
@@ -172,6 +176,7 @@ jobs:
             results/calibration_voltage.png
             results/metrics_ef_struct_smoke.json
             results/parity_ef_struct_smoke.png
+            results/metrics_voltage_struct_smoke.json
           if-no-files-found: ignore
 
   security:
