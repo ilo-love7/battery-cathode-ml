@@ -26,6 +26,7 @@ requirements = [
 
 # src/ 下的顶层模块（与 src/ 目录一一对应）
 PY_MODULES = [
+    "cgcnn_data",
     "conformal",
     "download_data",
     "element_data",
@@ -44,6 +45,7 @@ PY_MODULES = [
     "screening",
     "structure_features",
     "train_capacity",
+    "train_cgcnn",
     "train_ef",
     "train_ef_struct",
     "train_gap",
@@ -55,7 +57,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.4.2",
+    version="1.5.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",
@@ -99,6 +101,9 @@ setup(
         "mp": [
             "pymatgen>=2023.0.0",
             "mp-api>=0.41.0",
+        ],
+        "gpu": [
+            "torch>=2.0",
         ],
     },
     entry_points={

@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 111 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗规则、多目标、结构描述符与 conformal 覆盖率
+- 128 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率与晶体图构建
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -95,6 +95,7 @@ python run_pipeline.py
 | **带隙** | matbench_expt_gap（实验值） | 4,604 | RF+HGB 集成 | **0.4415 eV** | 0.808 | 0.687 |
 | **形成能** | matbench_perovskites（DFT） | 18,928 | RF+HGB 集成 | **0.484 eV/5原子胞** | 0.642 | 0.252 |
 | **形成能（结构感知）** | matbench_perovskites（21 维结构描述符 + 成分） | 18,928 | RF+HGB 集成 | **0.193 eV/5原子胞** | 0.281 | 0.857 |
+| **形成能（结构 GNN / CGCNN）** | matbench_perovskites（晶体图端到端） | 18,928 | CGCNN（97.5k 参数，GPU） | **0.0401 eV/5原子胞**（0.0080 eV/atom） | 0.0665 | — |
 | **平均电压** | **Materials Project 插入电极（真实 `average_voltage`）** | 2,672（1,794 个唯一成分） | RF+HGB 集成 | **0.419 V** | 0.620 | 0.682 |
 | **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.2 mAh/g** | 46.9 | 0.663 |
 | 平均电压（合成对照） | `battery_voltage.csv`（合成演示数据） | 500 | RF+HGB 集成 | 0.192 V | 0.252 | 0.548 |
@@ -236,7 +237,36 @@ top = screen_candidates(n_top=5, min_voltage=3.0, max_voltage=5.0)
 > 负的预测带隙说明该成分落在训练分布之外（实验带隙数据里几乎没有 Li 正极），
 > 属于外推产物——请以 `Egap_spread` 与风险标记判断可信度，不要直接采信数值。
 
-### 3. Jupyter
+### 4. GPU 结构模型（CGCNN）
+
+CPU 结构描述符（0.193 eV/胞）之上，项目内置了一个**自包含的 CGCNN 实现**
+（`src/cgcnn_data.py` 建图 + `src/train_cgcnn.py` 训练，无需克隆外部仓库）。
+
+| 模型 | test MAE (eV/5原子胞) | MAE (eV/atom) | 训练耗时 |
+|---|---|---|---|
+| 成分基线（33 统计 + 元素分数） | 0.4837 | 0.0967 | 25 s（CPU） |
+| 成分 + 21 维结构描述符 | 0.1929 | 0.0386 | 4 min（CPU） |
+| **CGCNN（本项目实现）** | **0.0401** | **0.0080** | **210 s / 120 轮（RTX 4050）** |
+| matbench 榜首 coGN（参考） | 0.0269 | 0.0054 | GPU 数小时 |
+
+训练/验证/测试 = 0.0269 / 0.0384 / 0.0401 eV/胞（8:1:1 随机划分，无早停触发）。
+
+> **环境**（GPU 版 torch 需要独立 Python 3.12 环境）：
+> ```bash
+> python3.12 -m venv D:\项目\venvs\bcm-cgcnn
+> D:\项目\venvs\bcm-cgcnn\Scripts\pip.exe install torch --index-url https://download.pytorch.org/whl/cu124
+> D:\项目\venvs\bcm-cgcnn\Scripts\pip.exe install numpy pandas matplotlib
+> ```
+> **训练**：
+> ```bash
+> D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/train_cgcnn.py --epochs 120
+> D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/train_cgcnn.py --limit 500 --epochs 3   # 冒烟
+> ```
+>
+> ⚠️ CGCNN 的输入是**晶体结构**而非化学式；对没有结构的候选式做预测需要先生成/检索结构
+> （如按成分去 MP 查同成分结构），这部分尚未接入预测 CLI。
+
+### 5. Jupyter
 
 ```bash
 jupyter lab examples/
@@ -247,7 +277,9 @@ jupyter lab examples/
 
 ## ⚠️ 已知限制
 
-1. **成分模型有原理性上限**：同成分不同占位无法区分（成分不可约下限 0.379 eV/胞）。本项目已用 21 维结构描述符把形成能 MAE 降到 0.193，但仍远高于结构 GNN（0.027）；电压侧的同成分多框架问题（std 0.22 V）尚未用结构描述符处理。
+1. **CGCNN 尚未接入预测链路**：结构模型已把形成能 MAE 压到 0.0401 eV/胞（成分基线 0.4837），
+   但 CGCNN 需要**结构**输入，对任意化学式预测要先解决结构生成/检索，目前只在评估集上可用；
+   电压侧的同成分多框架问题（std 0.22 V）也尚未用结构模型处理。
 2. **域偏移**：带隙/形成能模型训练于实验带隙与**钙钛矿**数据，用于锂电正极属外推，负带隙即外推信号。
 3. **电压模型域很宽**：训练集含大量 MP 计算的非商用体系（氢化物、氟化物等），虽然覆盖了 LCO/LFP/NMC 等真实正极，但对具体体系的精度仍受框架歧义限制（按框架分组的 MAE 0.481 V）。
 4. **筛选是成分级优先级**：不含 Li 含量变化、电压曲线、动力学、电解液兼容性、成本与毒性。
@@ -286,13 +318,15 @@ battery-cathode-ml/
 │   ├── prepare_struct_features.py  # ★ 结构描述符固化 -> perovskites_struct.csv.gz
 │   ├── train_ef_struct.py       # ★ 结构感知形成能模型（成分 vs 结构 vs 两者）
 │   ├── conformal.py             # ★ split conformal 不确定性校准
+│   ├── cgcnn_data.py            # ★ 晶体图构建（原子/边特征，纯 NumPy）
+│   ├── train_cgcnn.py           # ★ CGCNN 结构图神经网络（PyTorch，GPU）
 │   ├── screening.py             # 候选筛选排序
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 111 个单元测试
+├── tests/                       # 128 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -308,7 +342,7 @@ battery-cathode-ml/
 |---|---|---|---|
 | ~~1~~ | ~~接真实电池数据~~ ✅ **已完成** | `fetch_mp_battery.py` + `prepare_mp_data.py` 拉取并清洗 2,772 条 MP 插入电极，真实电压模型 MAE 0.419 V | 电压指标首次具备物理意义 |
 | ~~2~~ | ~~容量等多目标~~ ✅ **已完成** | `train_capacity.py`：真实 `capacity_grav`，MAE 25.2 mAh/g（基线 47.8），任意化学式可用 | 筛选缺 `nLi_extract` 时也有容量维度 |
-| 2 | **结构特征 → 图神经网络** | ✅ 已落地 CPU 版（21 维结构描述符：MAE 0.484 → 0.193，R² 0.25 → 0.86）；下一步用 `export_cgcnn.py` 上 CGCNN/MEGNet | 逼近 matbench 榜首 0.0269 eV/胞 |
+| ~~2~~ | ~~结构特征 → 图神经网络~~ ✅ **已完成** | CPU 结构描述符 0.1929 → **CGCNN 0.0401 eV/胞**（test，210s/120 轮，RTX 4050），已逼近 matbench 榜首 coGN 0.0269 | 形成能进入 0.04 eV/胞 量级 |
 | ~~3~~ | ~~不确定性校准~~ ✅ **已完成** | `conformal.py`：90% 区间 ±1.00 V / ±75.8 mAh/g，交叉校准覆盖率 90.0%/90.1%；并指出模型分歧只有真实 MAE 的 17% | 预测从「一个数」变成「一个数 + 有覆盖率保证的区间」 |
 | 4 | **多目标优化** | 用 Pareto 前沿（电压 vs 容量 vs 稳定性）替代线性加权评分 | 避免权重拍脑袋，给出取舍曲线 |
 | 5 | **框架级消歧** | 电压数据里同成分多框架是主要误差源（分组 MAE 0.48 vs 随机 0.42），引入结构描述符区分 | 直接压缩当前最大误差项 |
@@ -320,7 +354,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 111 个测试
+pytest tests/ -v                                             # 128 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -358,7 +392,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.4.2}
+  version = {1.5.0}
 }
 ```
 
