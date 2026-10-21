@@ -98,11 +98,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate voltage data
-        run: python src/generate_voltage_data.py
+      - name: Train voltage model on real MP data
+        run: python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
 
-      - name: Train voltage model
-        run: python src/train_voltage.py
+      - name: External validation on known cathodes
+        run: python src/validate_known_cathodes.py
 
       - name: CLI prediction smoke test
         run: |
@@ -111,9 +111,11 @@ jobs:
 
       - name: Verify artifacts
         run: |
+          test -f data/processed/mp_voltage.csv
           test -f results/metrics_voltage.json
           test -f results/parity_voltage.png
           test -f results/importance_voltage.png
+          test -f results/validation_known_cathodes.csv
           echo "Pipeline smoke test passed."
 
       - name: Upload results
@@ -125,6 +127,7 @@ jobs:
             results/metrics_voltage.json
             results/parity_voltage.png
             results/importance_voltage.png
+            results/validation_known_cathodes.csv
           if-no-files-found: ignore
 
   security:

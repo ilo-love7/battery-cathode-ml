@@ -95,3 +95,9 @@ cgcnn_data/
 pred.json
 coverage.xml
 results/training_universe.json
+
+# MP 原始 API 拉取结果（体积较大，用 fetch_mp_battery.py 可随时重放）
+data/raw/mp_*.csv
+
+# 但保留清洗后的真实电压数据集：没有 API Key 也能复现真实指标
+!data/processed/mp_voltage.csv

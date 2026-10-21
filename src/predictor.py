@@ -186,6 +186,7 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
                 "Voltage_RF_V": round(pred["rf"], 3),
                 "Voltage_HGB_V": round(pred["hgb"], 3),
                 "Voltage_ensemble_V": round(pred["ens"], 3),
+                "Voltage_spread": round(pred["spread"], 3),
             })
             if pred["ens"] > 4.0:
                 result["voltage_level"] = "High voltage (>4 V)"
@@ -201,8 +202,9 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
 # 批量预测
 # --------------------------------------------------------------------------- #
 APPROX_NOTE = (
-    "[!] 成分级近似：带隙/形成能模型训练于 matbench 公开数据（实验带隙、"
-    "钙钛矿 DFT 形成能），对锂电池体系属外推；电压模型基于合成数据，仅演示流程。"
+    "[!] 成分级近似：电压模型训练于 Materials Project 插入电极真实数据"
+    "（average_voltage，n≈2.7k）；带隙/形成能模型训练于 matbench 公开数据"
+    "（实验带隙、钙钛矿 DFT 形成能），对锂电池体系仍属外推——负带隙即外推信号。"
 )
 
 
@@ -244,7 +246,7 @@ def predict_material_properties(formulas: Union[str, List[str]],
                 "conductivity", "stability", "voltage_level"):
         if col in df.columns:
             main_cols.append(col)
-    for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV"):
+    for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV", "Voltage_spread"):
         if col in df.columns:
             main_cols.append(col)
     return df[[c for c in main_cols if c in df.columns]]

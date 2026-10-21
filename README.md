@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 80 个单元测试，含「特征列顺序」回归测试、元素表完整性、文档链接一致性检查
+- 86 个单元测试，含「特征列顺序」回归测试、元素表完整性、文档一致性、MP 数据清洗规则
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -94,15 +94,23 @@ python run_pipeline.py
 |---------|--------|--------|------|-----|------|-----|
 | **带隙** | matbench_expt_gap（实验值） | 4,604 | RF+HGB 集成 | **0.440 eV** | 0.808 | 0.687 |
 | **形成能** | matbench_perovskites（DFT） | 18,928 | RF+HGB 集成 | **0.484 eV/5原子胞** | 0.642 | 0.252 |
-| **平均电压** | `battery_voltage.csv`（**合成演示数据**） | 500 | RF+HGB 集成 | **0.192 V** | 0.252 | 0.548 |
+| **平均电压** | **Materials Project 插入电极（真实 `average_voltage`）** | 2,672（1,794 个唯一成分） | RF+HGB 集成 | **0.419 V** | 0.620 | 0.682 |
+| 平均电压（合成对照） | `battery_voltage.csv`（合成演示数据） | 500 | RF+HGB 集成 | 0.192 V | 0.252 | 0.548 |
 
-> ⚠️ **关于第三行**：电压数据由 `src/generate_voltage_data.py` 按「材料族先验 + 噪声」合成，
-> 同一化学式可能被赋予不同电压。该行指标只能说明**流程可跑通**，不含真实物理信息，
-> 不应引用为科学结论。接入真实数据（Materials Project 电池数据 / 文献电压表）后才有意义。
+**外部验证**（12 个文献常见商用正极，不参与训练）：
+**MAE 0.160 V、RMSE 0.212 V、Spearman ρ 0.842** —— 其中 NMC111 误差 0.006 V、NMC523 0.008 V、
+LiFePO4 0.061 V。复现：`python src/validate_known_cathodes.py`。
+
+> **关于电压两行的读法**：真实数据那一行才是可用结论。同一化学式在该数据集里可能对应
+> 多个电压（不同框架/脱锂区间），因此额外按 `framework_formula` 做 GroupKFold，
+> MAE 为 **0.481 V**、R² 0.627 —— 这是更严格的泛化估计。
+> 中位数基线 MAE 为 0.679 V，模型相对基线降低约 38%。
 >
-> 形成能那一行的关键背景：该数据集 18,928 条样本只对应 9,646 个唯一成分，
-> 同成分内部目标标准差中位数 0.42 eV/胞，纯成分模型的理论 MAE 下限约 0.379 eV/胞，
-> 因此 0.484 eV/胞 已接近成分特征的上限——进一步提升必须引入结构信息（见[深化方向](#-深化方向)）。
+> 合成数据那一行只说明**流程可跑通**，不含真实物理信息，保留作对照，请勿引用为结论。
+>
+> 形成能那一行的关键背景：18,928 条样本只对应 9,646 个唯一成分，同成分内部目标标准差
+> 中位数 0.42 eV/胞，纯成分模型的理论 MAE 下限约 0.379 eV/胞，因此 0.484 eV/胞 已接近
+> 成分特征上限——进一步提升必须引入结构信息（见[深化方向](#-深化方向)）。
 
 ---
 
@@ -111,10 +119,20 @@ python run_pipeline.py
 | 数据 | 获取方式 | 是否随仓库分发 |
 |---|---|---|
 | `matbench_expt_gap` / `matbench_perovskites` | `python src/download_data.py`（官方 `ml.materialsproject.org`，无需 Key） | ❌（体积原因，`.gitignore` 排除） |
+| **MP 插入电极真实电压** | `python src/fetch_mp_battery.py --what electrodes` → `python src/prepare_mp_data.py`（需免费 MP API Key） | ✅ 清洗后的 `data/processed/mp_voltage.csv` 已随仓库提供，**没有 Key 也能复现真实指标** |
 | `data/battery_voltage.csv` | 已随仓库提供，或 `python src/generate_voltage_data.py` 重新生成 | ✅ |
 | `data/cathode_candidates.csv` | 已随仓库提供（40 个候选正极成分） | ✅ |
 
-离线环境：手动下载上述两个 `.json.gz` 放入 `data/raw/`，再执行 `python src/prepare_data.py`。
+**配置 Materials Project API Key**（免费，约 2 分钟）：
+
+1. 注册 https://materialsproject.org → Dashboard → **API Keys** → Create New Key；
+2. 任选一种方式存放（key 不进仓库，`.gitignore` 已排除 `.mp_api_key`）：
+   - `setx MP_API_KEY "你的key"`（Windows，新开终端生效）
+   - 写入 `%USERPROFILE%\.mp_api_key`
+   - 或运行时传参 `--key 你的key`
+
+> 数据来源与许可：Materials Project 数据按 **CC BY 4.0** 使用，引用见文末「引用」一节。
+> `data/raw/mp_*.csv`（原始 API 输出）不入库，用上面的命令可随时重放。
 
 ---
 
@@ -147,14 +165,20 @@ pip install -e ".[mp]"     # pymatgen + mp-api
 ### 1. 命令行
 
 ```bash
-# 数据（首次）
+# ① Matbench 数据（无需 Key）→ 带隙 / 形成能模型
 python src/download_data.py
 python src/prepare_data.py
-
-# 训练三个模型
 python src/train_gap.py
 python src/train_ef.py
-python src/train_voltage.py
+
+# ② Materials Project 真实电压数据（需免费 API Key）→ 真·电压模型
+python src/fetch_mp_battery.py --what electrodes      # 拉 2.7k 条插入电极
+python src/prepare_mp_data.py                          # 清洗 -> data/processed/mp_voltage.csv
+python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
+python src/validate_known_cathodes.py                  # 与 12 个商用正极对照
+
+# 合成数据对照（可选）
+python src/train_voltage.py --data data/battery_voltage.csv --tag voltage_synthetic
 
 # 预测（支持任意化学式，含小数/括号）
 python src/predictor.py --formulas "LiFePO4,LiNi0.8Co0.1Mn0.1O2,Li3V2(PO4)3"
@@ -170,6 +194,9 @@ python src/screening.py
 python run_pipeline.py [--fast] [--skip-data] [--skip-training] [--skip-screening]
 ```
 
+> 只有 `data/processed/mp_voltage.csv` 是**已经随仓库提供**的，所以即使没有 API Key，
+> 也能直接跳到 `train_voltage.py --data data/processed/mp_voltage.csv` 复现真实指标。
+
 ### 2. Python API
 
 ```python
@@ -178,8 +205,8 @@ from predictor import predict_material_properties, screen_candidates
 df = predict_material_properties(["LiFePO4", "LiCoO2"])
 print(df.to_string(index=False))
 #     formula  Egap_ensemble_eV  Eform_ensemble_eV_fu  Voltage_ensemble_V ...
-#     LiFePO4           -0.1923                1.3027               3.548 ...
-#      LiCoO2            0.3517                1.1506               3.802 ...
+#     LiFePO4           -0.1923                1.3027               3.389 ...
+#      LiCoO2            0.3517                1.1506               3.693 ...
 
 top = screen_candidates(n_top=5, min_voltage=3.0, max_voltage=5.0)
 ```
@@ -198,9 +225,9 @@ jupyter lab examples/
 
 ## ⚠️ 已知限制
 
-1. **纯成分、无结构**：无法区分同成分的不同阳离子占位/相，形成能 MAE 存在 0.379 eV/胞 的成分不可约下限。
+1. **纯成分、无结构**：无法区分同成分的不同阳离子占位/相，形成能 MAE 存在 0.379 eV/胞 的成分不可约下限；电压数据里同一化学式也可能对应多个框架（同成分电压 std 中位数 0.22 V）。
 2. **域偏移**：带隙/形成能模型训练于实验带隙与**钙钛矿**数据，用于锂电正极属外推，负带隙即外推信号。
-3. **电压模型是演示**：目标值为合成数据，R² 主要来自「材料族均值」，无物理意义。
+3. **电压模型域很宽**：训练集含大量 MP 计算的非商用体系（氢化物、氟化物等），虽然覆盖了 LCO/LFP/NMC 等真实正极，但对具体体系的精度仍受框架歧义限制（按框架分组的 MAE 0.481 V）。
 4. **筛选是成分级优先级**：不含 Li 含量变化、电压曲线、动力学、电解液兼容性、成本与毒性。
 5. **不确定性代理非校准**：`|RF-HGB|/2` 只是模型间分歧，不是置信区间。
 
@@ -211,9 +238,10 @@ jupyter lab examples/
 ```
 battery-cathode-ml/
 ├── data/
-│   ├── raw/                     # Matbench 原始 json.gz（下载，不入库）
-│   ├── processed/               # 清洗后 CSV（不入库）
-│   ├── battery_voltage.csv      # 电压演示数据
+│   ├── raw/                     # Matbench json.gz + MP API 原始 CSV（下载，不入库）
+│   ├── processed/               # 清洗后 CSV
+│   │   └── mp_voltage.csv       # ★ 真实 MP 电压数据集（随仓库提供，无需 Key）
+│   ├── battery_voltage.csv      # 合成演示数据
 │   └── cathode_candidates.csv   # 40 个候选正极成分
 ├── src/
 │   ├── element_data.py          # 118 元素性质表
@@ -223,16 +251,19 @@ battery-cathode-ml/
 │   ├── voltage.py               # 理论容量与形成能近似电压
 │   ├── download_data.py         # Matbench 数据下载
 │   ├── prepare_data.py          # 数据清洗
+│   ├── fetch_mp_battery.py      # ★ MP 插入电极/摘要拉取（需 Key）
+│   ├── prepare_mp_data.py       # ★ MP 电极数据清洗 -> mp_voltage.csv
 │   ├── train_gap.py             # 带隙模型
 │   ├── train_ef.py              # 形成能模型
-│   ├── train_voltage.py         # 平均电压模型
+│   ├── train_voltage.py         # 平均电压模型（--data / --tag 切换数据集）
+│   ├── validate_known_cathodes.py  # ★ 文献商用正极外部验证
 │   ├── screening.py             # 候选筛选排序
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
-│   ├── fetch_mp_data.py         # MP API 拉取（可选）
+│   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 80 个单元测试
+├── tests/                       # 86 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -246,13 +277,13 @@ battery-cathode-ml/
 
 | # | 方向 | 做什么 | 预期收益 |
 |---|---|---|---|
-| 1 | **接真实电池数据** | MP API `mp-api` 拉 Li 体系 + 已知正极电压表，替换合成电压数据 | 电压指标第一次有物理意义 |
+| ~~1~~ | ~~接真实电池数据~~ ✅ **已完成** | `fetch_mp_battery.py` + `prepare_mp_data.py` 拉取并清洗 2,772 条 MP 插入电极，真实电压模型 MAE 0.419 V | 电压指标首次具备物理意义 |
+| 1 | **容量等多目标** | MP 电极数据自带 `capacity_grav`，同一套特征再加一个容量模型 | 筛选评分中的「容量」项从理论估算换成模型预测 |
 | 2 | **结构特征 / 图神经网络** | 用 `export_cgcnn.py` 导出结构，训练 CGCNN（参照 matbench coGN 0.0269 eV/胞） | 形成能 MAE 从 0.48 → 0.03-0.10，突破成分不可约上限 |
 | 3 | **不确定性校准** | 用 OOF 残差做分位数回归 / conformal prediction，输出 90% 预测区间 | 从「模型分歧」升级为可解释的置信区间 |
 | 4 | **多目标优化** | 用 Pareto 前沿（电压 vs 容量 vs 稳定性）替代线性加权评分 | 避免权重拍脑袋，给出取舍曲线 |
-| 5 | **主动学习闭环** | 模型不确定 → 挑候选 → DFT 计算 → 回训 | 小样本下效率倍增 |
+| 5 | **框架级消歧** | 电压数据里同成分多框架是主要误差源（分组 MAE 0.48 vs 随机 0.42），引入结构描述符区分 | 直接压缩当前最大误差项 |
 | 6 | **在线演示** | Streamlit / Gradio 页面：输入化学式即时出三维性质 | 项目可展示、可交互 |
-| 7 | **可复现性** | 固定 `requirements` 版本 + `matbench` 官方评测接口对齐 | 结果可外部复验 |
 
 ---
 
@@ -260,13 +291,20 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 80 个测试
+pytest tests/ -v                                             # 86 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
+
+# 真实数据链路（需 MP API Key；没有 Key 也可直接用仓库里的 processed CSV 训练）
+python src/fetch_mp_battery.py --what electrodes
+python src/prepare_mp_data.py
+python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
+python src/validate_known_cathodes.py
 ```
 
 CI（`.github/workflows/ci.yml`）包含：语法门禁 → lint/format（非阻断）→ 单元测试（含覆盖率）
 → 端到端 smoke（生成数据 → 训练电压模型 → CLI 预测 → 校验产物）→ 安全扫描（非阻断）。
+MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**（`tests/test_mp_data.py`，用离线 fixture）。
 
 ---
 
@@ -287,7 +325,21 @@ CI（`.github/workflows/ci.yml`）包含：语法门禁 → lint/format（非阻
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.1.1}
+  version = {1.2.0}
+}
+```
+
+本项目使用的 Materials Project 数据按 **CC BY 4.0** 提供，请同时引用：
+
+```bibtex
+@article{jain2013materials,
+  title   = {Commentary: The Materials Project: A materials genome approach to accelerating materials innovation},
+  author  = {Jain, Anubhav and others},
+  journal = {APL Materials},
+  volume  = {1},
+  number  = {1},
+  pages   = {011002},
+  year    = {2013}
 }
 ```
 

@@ -3,6 +3,41 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-10-21
+
+**核心变化：电压模型从合成演示数据切换到 Materials Project 真实数据。**
+
+### 新增
+
+- `src/fetch_mp_battery.py`：从 MP 官方 API 拉取两类真实数据
+  - `materials.insertion_electrodes`（`working_ion=Li`，2,774 条）→ **真实 `average_voltage` / `capacity_grav`**
+  - `materials.summary`（含 Li 材料）→ 供外部验证
+  - API Key 读取优先级：`--key` > `MP_API_KEY` > `~/.mp_api_key`
+- `src/prepare_mp_data.py`：清洗规则（0–6 V、化学式可解析、元素在表内、容量交叉校验），
+  2,774 → **2,672 行 / 1,794 个唯一成分**
+- `data/processed/mp_voltage.csv` **随仓库分发** → 没有 API Key 也能复现全部真实指标
+- `src/validate_known_cathodes.py`：12 个文献常见商用正极的外部验证
+  （**MAE 0.160 V、RMSE 0.212 V、Spearman ρ 0.842**；NMC111 误差 0.006 V、LFP 0.061 V）
+- `tests/test_mp_data.py`：离线 fixture 覆盖清洗规则与 Key 读取优先级（6 例，不需要网络）
+
+### 变更
+
+- `train_voltage.py` 参数化：`--data` / `--tag` / `--target` / `--group-col`，
+  并按分组列额外跑 GroupKFold，暴露「同框架不同锂含量」的重复效应
+- 电压模型指标（真实数据）：随机 5 折 OOF **MAE 0.419 V / R² 0.682**；
+  按 `framework_formula` 分组的 GroupKFold **MAE 0.481 V / R² 0.627**；
+  中位数基线 MAD 0.679 V（模型相对基线降低约 38%）
+- 合成数据结果保留为对照：`python src/train_voltage.py --data data/battery_voltage.csv --tag voltage_synthetic`
+- `predictor` 新增 `Voltage_spread` 输出；数据来源提示改为真实数据
+- README：指标表加入真实电压行与外部验证、新增 MP Key 配置与 CC BY 4.0 引用、
+  已知限制与深化方向重写；`docs/项目报告.md` 新增附录 C（真实数据扩展）
+- 测试 86 个；版本 1.1.1 → 1.2.0
+
+### 未采用（已评估）
+
+- 本机 D 盘的 26 套公开电池数据集（NASA/CALCE/MIT/Oxford/… 共 80 GB）均为**循环老化时序**，
+  与「成分 → 材料性质」任务不同源，只能服务于寿命预测项目；不作为本项目补充数据。
+
 ## [1.1.1] - 2026-10-21
 
 ### 修复
