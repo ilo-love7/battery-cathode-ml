@@ -194,3 +194,18 @@ class TestConsoleEncoding:
                 failures.append((os.path.basename(path), proc.returncode,
                                  (proc.stderr or "")[-200:]))
         assert not failures, failures
+
+class TestTorchImportDiscipline:
+    """CI 不装 torch，因此「带 argparse 的脚本必须把 torch 导入放进函数内」是硬约束。
+
+    （cgcnn_model.py 例外：它按设计在模块级导入 torch，只被 torch 环境引用。）
+    """
+
+    @pytest.mark.parametrize("script", [
+        "train_cgcnn.py", "train_cgcnn_mp.py", "train_cgcnn_voltage.py",
+        "predict_cgcnn.py", "voltage_from_cgcnn.py",
+    ])
+    def test_torch_import_is_deferred(self, script):
+        text = open(ROOT / "src" / script, encoding="utf-8").read()
+        head = text.split("def ", 1)[0]        # 模块级代码（首个 def 之前）
+        assert "import torch" not in head, f"{script} 在模块级导入了 torch"

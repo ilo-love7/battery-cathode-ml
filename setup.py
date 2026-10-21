@@ -52,6 +52,7 @@ PY_MODULES = [
     "train_capacity",
     "train_cgcnn",
     "train_cgcnn_mp",
+    "train_cgcnn_voltage",
     "train_ef",
     "train_ef_struct",
     "train_gap",
@@ -60,11 +61,12 @@ PY_MODULES = [
     "validate_known_cathodes",
     "validate_mp_external",
     "voltage",
+    "voltage_from_cgcnn",
 ]
 
 setup(
     name="battery-cathode-ml",
-    version="1.6.0",
+    version="1.7.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

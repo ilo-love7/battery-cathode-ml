@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 135 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建与电压结构特征
+- 140 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征与 torch 延迟导入约束
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -97,7 +97,8 @@ python run_pipeline.py
 | **形成能（结构感知）** | matbench_perovskites（21 维结构描述符 + 成分） | 18,928 | RF+HGB 集成 | **0.193 eV/5原子胞** | 0.281 | 0.857 |
 | **形成能（结构 GNN / CGCNN）** | matbench_perovskites（晶体图端到端） | 18,928 | CGCNN（97.5k 参数，GPU） | **0.0401 eV/5原子胞**（0.0080 eV/atom） | 0.0665 | — |
 | **形成能（CGCNN · MP 含 Li）** | MP 含 Li 材料结构（真实 DFT，eV/atom） | 3,000（仓库内）/ 8,000（本地） | CGCNN（GPU） | **0.1921 / 0.0962 eV/atom** | — | — |
-| **平均电压（含结构特征）** | 同上 + 两相结构描述符 | 2,667 | RF+HGB 集成 | **0.408 V**（成分基线 0.419） | 0.597 | 0.705 |
+| **平均电压（双塔 CGCNN）** | MP 插入电极两相结构（端到端） | 2,532 | 双塔 CGCNN（GPU） | **0.352 V**（随机）/ 0.401（分组） | 0.521 | 0.742 |
+| 平均电压（成分 + 结构描述符） | 同上 + 44 维描述符 | 2,667 | RF+HGB 集成 | 0.408 V（随机）/ 0.445（分组） | 0.597 | 0.705 |
 | **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.2 mAh/g** | 46.9 | 0.663 |
 | 平均电压（合成对照） | `battery_voltage.csv`（合成演示数据） | 500 | RF+HGB 集成 | 0.192 V | 0.252 | 0.548 |
 
@@ -303,6 +304,34 @@ D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/predict_cgcnn.py --formulas "Li
 10 个常见正极的预测与 MP 真值对比：整体 MAE 0.058 eV/atom；其中 **5 条结构不在训练集内**，
 干净外推 MAE **0.0896 eV/atom**（LiNiO₂ 误差 0.23，属训练池外的高镍体系——域外推仍是主要风险）。
 
+
+### 4.2 端到端电压模型（双塔 CGCNN，v1.7.0）
+
+先试「物理化路径」：把每原子形成能模型套进 `V = [E(脱锂) − E(嵌锂)] / n_Li`，
+结果 **MAE 0.700 V**，还不如成分模型（0.416 V）——每原子误差被
+「单胞原子数（可达 80）/ n_Li（常 1–2）」放大，且两相误差各自独立、不会抵消。
+
+**双塔模型**改为直接学「差」：共享编码器（由 `cgcnn_mp_8k.pt` 初始化）分别编码两相，
+拼接 `[h_frame, h_lith, h_frame − h_lith]` + 标量（log n_Li、两相原子数）→ MLP 回归电压。
+
+| 模型 / 划分 | test MAE (V) | R² |
+|---|---|---|
+| 成分模型（RF+HGB，OOF） | 0.4187（随机）/ 0.4733（分组） | 0.682 |
+| CGCNN-ΔE 物理路径 | 0.7004 | — |
+| **双塔 CGCNN（随机 8:1:1）** | **0.3525** | 0.742 |
+| **双塔 CGCNN（成分分组，更严格）** | **0.4007** | 0.747 |
+| 中位数基线（MAD） | 0.8493 | — |
+
+→ 相对成分模型提升 **约 15%**，比中位数基线好 2.4 倍；训练 94 轮 / 155 s（RTX 4050，122.7k 参数）。
+
+```powershell
+# 需要结构文件（MP Key，约 3 分钟）
+python src/fetch_mp_structures.py --mode ids --ids-file data/raw/voltage_material_ids.txt --out data/raw/mp_structures_electrodes.json.gz
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/train_cgcnn_voltage.py --epochs 120
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/train_cgcnn_voltage.py --group-split --tag cgcnn_voltage_group
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/voltage_from_cgcnn.py   # 物理路径对照
+```
+
 ### 5. Jupyter
 
 ```bash
@@ -363,13 +392,15 @@ battery-cathode-ml/
 │   ├── fetch_mp_structures.py   # ★ 从 MP 拉晶体结构（li/formulas/ids）
 │   ├── prepare_voltage_struct.py  # ★ 电压数据补结构特征（两相描述符+收缩率）
 │   ├── train_voltage_struct.py  # ★ 电压结构消歧对照实验
+│   ├── train_cgcnn_voltage.py   # ★ 双塔 CGCNN：两相结构 -> 电压（端到端）
+│   ├── voltage_from_cgcnn.py    # ★ CGCNN-ΔE 物理路径（负面结果对照）
 │   ├── screening.py             # 候选筛选排序
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 135 个单元测试
+├── tests/                       # 140 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -397,7 +428,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 135 个测试
+pytest tests/ -v                                             # 140 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -435,7 +466,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.6.0}
+  version = {1.7.0}
 }
 ```
 

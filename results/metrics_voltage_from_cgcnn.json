@@ -1,0 +1,17 @@
+{
+  "n_pairs": 2532,
+  "model": "cgcnn_mp_8k.pt",
+  "trained_on": "mp_structures_Li.json.gz",
+  "cgcnn_voltage": {
+    "MAE_V": 0.7004,
+    "RMSE_V": 1.0366,
+    "spearman": 0.6149
+  },
+  "composition_model_reference": {
+    "n": 2532,
+    "MAE_V": 0.4157,
+    "spearman": 0.8183
+  },
+  "median_baseline_MAD_V": 0.8439,
+  "note": "V = [E_form(脱锂相) − E_form(嵌锂相)] / n_Li，其中每胞形成能 = 每原子预测 × 单胞原子数，n_Li 取两相原子数差。"
+}

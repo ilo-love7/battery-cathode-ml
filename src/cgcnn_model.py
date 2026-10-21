@@ -48,7 +48,8 @@ class CrystalGraphConvNet(nn.Module):
         self.fc_out = nn.Linear(h_fea_len, 1)
         self.softplus = nn.Softplus()
 
-    def forward(self, atom_fea, edge_fea, edge_src, edge_dst, batch_idx):
+    def encode(self, atom_fea, edge_fea, edge_src, edge_dst, batch_idx):
+        """晶体级嵌入（卷积 + 平均池化），供双塔电压模型等复用。"""
         x = self.embedding(atom_fea)
         for conv in self.convs:
             x = conv(x, edge_fea, edge_src, edge_dst)
@@ -56,11 +57,16 @@ class CrystalGraphConvNet(nn.Module):
         pooled = torch.zeros(n_crystals, x.shape[1], device=x.device).index_add_(0, batch_idx, x)
         counts = torch.zeros(n_crystals, device=x.device).index_add_(
             0, batch_idx, torch.ones_like(batch_idx, dtype=torch.float))
-        pooled = pooled / counts.unsqueeze(1)
+        return pooled / counts.unsqueeze(1)
+
+    def head(self, pooled):
         h = self.softplus(self.fc_in(pooled))
         for fc in self.fcs:
             h = self.softplus(fc(h))
         return self.fc_out(h).squeeze(1)
+
+    def forward(self, atom_fea, edge_fea, edge_src, edge_dst, batch_idx):
+        return self.head(self.encode(atom_fea, edge_fea, edge_src, edge_dst, batch_idx))
 
 
 def build_model(atom_fea_len: int = 64, n_conv: int = 3, h_fea_len: int = 128,
