@@ -31,6 +31,8 @@ OUT = ROOT / "results"
 
 
 def main() -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     data_path = ROOT / "data/processed/perovskites_ef.csv"
     if not data_path.exists():
         print("[ERROR] 缺少 data/processed/perovskites_ef.csv")

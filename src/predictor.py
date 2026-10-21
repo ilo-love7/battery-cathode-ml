@@ -414,6 +414,8 @@ def screen_candidates(candidates_file: Union[str, Path, None] = None,
 # CLI
 # --------------------------------------------------------------------------- #
 def main(argv: Optional[List[str]] = None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="电池正极材料性质预测 / 候选筛选")
     ap.add_argument("--formulas", default="", help="逗号分隔的化学式，如 'LiFePO4,LiCoO2'")
     ap.add_argument("--top", type=int, default=0, help="对候选库筛选并返回 Top N")

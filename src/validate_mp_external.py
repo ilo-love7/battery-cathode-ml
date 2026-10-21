@@ -101,6 +101,8 @@ def _predict_block(df: pd.DataFrame, bundle: dict, per_cell: bool = False):
 
 
 def main() -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     if not SUMMARY_PATH.exists():
         print(f"[ERROR] 找不到 {SUMMARY_PATH}")
         print("        请先运行: python src/prepare_mp_summary.py")

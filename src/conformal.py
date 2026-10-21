@@ -85,6 +85,8 @@ def reliability_curve(scores: np.ndarray, alphas) -> list:
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="split conformal 不确定性校准")
     ap.add_argument("--tag", default="voltage", help="对应 results/oof_{tag}.csv")
     ap.add_argument("--alpha", type=float, default=0.10, help="显著性水平（0.10 -> 90%% 区间）")

@@ -53,6 +53,8 @@ OUT_PATH = ROOT / "data" / "processed" / "mp_voltage.csv"
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="清洗 MP 插入电极数据为训练表")
     ap.add_argument("--raw", default=str(RAW_PATH))
     ap.add_argument("--out", default=str(OUT_PATH))

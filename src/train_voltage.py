@@ -242,6 +242,8 @@ def save_results(metrics, preds, ens_pred, fitted_models, feature_names,
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="训练平均电压预测模型")
     ap.add_argument("--data", default=str(SYNTHETIC_DATA), help="训练数据 CSV")
     ap.add_argument("--tag", default="voltage",

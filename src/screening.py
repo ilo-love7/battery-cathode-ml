@@ -93,6 +93,8 @@ def predict_with_bundle(bundle, comps):
 
 
 def main() -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     OUT.mkdir(exist_ok=True)
 
     missing = [p.name for p in (OUT / "models_gap.pkl", OUT / "models_ef.pkl") if not p.exists()]

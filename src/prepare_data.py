@@ -101,6 +101,8 @@ def clean_perovskites():
 
 
 def main() -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     missing = [p for p in (SRC_GAP, SRC_PEROV) if not p.exists()]
     if missing:
         print("[ERROR] 缺少原始数据：")

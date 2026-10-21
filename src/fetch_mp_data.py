@@ -82,6 +82,8 @@ def fetch_rest(key: str, formula: str, limit: int) -> list[dict]:
 
 
 def main():
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="Materials Project 数据拉取")
     ap.add_argument("--mode", choices=["mpapi", "rest"], default="mpapi")
     ap.add_argument("--key", required=True, help="MP API Key（免费注册获取）")

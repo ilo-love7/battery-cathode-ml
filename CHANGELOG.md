@@ -3,6 +3,24 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.5.1] - 2026-10-21
+
+### 修复
+
+- **Windows 控制台编码崩溃（CI 上暴露）**：GitHub Actions 的 Windows Runner
+  （以及启用英文区域设置的 Windows 用户）代码页无法编码中文与 `Å ≤ × →` 等字符，
+  CLI 一打印就抛 `UnicodeEncodeError: 'charmap' codec can't encode characters`。
+  - 新增 `src/console.py`：把 stdout/stderr 的错误处理设为 `replace`（必要时可切 UTF-8），
+    无法编码的字符退化为 `?` 而不是让脚本崩掉；已在全部 19 个 CLI 的 `main()` 开头接入。
+  - `tests/test_cgcnn.py` 增加回归测试：在 `PYTHONIOENCODING=gbk` 下跑 `console.py` 与
+    5 个 CLI 的 `--help`，断言退出码为 0（此前 Windows CI 正是死在这里）。
+  - CLI 接口测试改为给子进程注入 `PYTHONIOENCODING=utf-8` + 父进程 `errors="replace"`，
+    使测试与终端语言环境解耦。
+
+### 变更
+
+- 测试 128 → **130**；版本 1.5.0 → 1.5.1
+
 ## [1.5.0] - 2026-10-21
 
 **核心变化：自包含 CGCNN 结构图神经网络落地，形成能进入 0.04 eV/胞 量级。**

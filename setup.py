@@ -28,6 +28,7 @@ requirements = [
 PY_MODULES = [
     "cgcnn_data",
     "conformal",
+    "console",
     "download_data",
     "element_data",
     "export_cgcnn",
@@ -57,7 +58,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.5.0",
+    version="1.5.1",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

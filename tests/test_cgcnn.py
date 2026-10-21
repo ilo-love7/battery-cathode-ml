@@ -134,9 +134,47 @@ class TestScriptInterface:
     def test_help_works_without_torch(self):
         import subprocess
 
+        import os
+
+        # Windows 控制台代码页无法编码中文/特殊字符：子进程强制 UTF-8，
+        # 父进程解码用 errors="replace"，让测试与终端语言环境解耦。
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             [sys.executable, str(ROOT / "src" / "train_cgcnn.py"), "--help"],
-            capture_output=True, text=True, encoding="utf-8", timeout=60)
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=env, timeout=60)
         assert proc.returncode == 0
         assert "CGCNN" in proc.stdout
         assert "--epochs" in proc.stdout and "--device" in proc.stdout
+
+
+class TestConsoleEncoding:
+    """回归：Windows 代码页（GBK/cp1252）下打印中文/特殊字符不能把脚本打挂。
+
+    这正是 GitHub Actions Windows Runner 上 v1.5.0 的失败原因：
+    argparse 打印中文 help 时抛 UnicodeEncodeError。
+    """
+
+    def test_console_guard_runs_under_gbk(self):
+        import os
+        import subprocess
+
+        env = {**os.environ, "PYTHONIOENCODING": "gbk"}
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "src" / "console.py")],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=env, timeout=60)
+        assert proc.returncode == 0, proc.stderr
+
+    def test_cli_help_survives_gbk(self):
+        import os
+        import subprocess
+
+        env = {**os.environ, "PYTHONIOENCODING": "gbk"}
+        for script in ("train_cgcnn.py", "predictor.py", "conformal.py",
+                       "train_voltage.py", "screening.py"):
+            proc = subprocess.run(
+                [sys.executable, str(ROOT / "src" / script), "--help"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                env=env, timeout=90)
+            assert proc.returncode == 0, (script, proc.stderr[-500:])

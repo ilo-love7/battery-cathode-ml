@@ -103,6 +103,8 @@ def download_one(name: str, base_url: str, timeout: int, force: bool = False) ->
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="下载 matbench 公开数据集")
     ap.add_argument("--base-url", default=DEFAULT_BASE, help="数据托管前缀")
     ap.add_argument("--timeout", type=int, default=60, help="单文件超时（秒）")

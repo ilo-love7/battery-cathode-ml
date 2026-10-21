@@ -194,6 +194,8 @@ def evaluate(model, graphs, idx, y_raw, mean, std, batch_size, device) -> dict:
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="CGCNN 训练（晶体图神经网络）")
     ap.add_argument("--raw", default=str(RAW_PATH))
     ap.add_argument("--tag", default="cgcnn")

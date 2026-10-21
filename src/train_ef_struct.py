@@ -137,6 +137,8 @@ def plot_importance(model, names, tag: str):
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="结构感知形成能模型（CPU）")
     ap.add_argument("--data", default=str(STRUCT_PATH))
     ap.add_argument("--tag", default="ef_struct")

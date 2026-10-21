@@ -48,6 +48,8 @@ def structure_to_counts(st: dict) -> dict:
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="生成结构描述符表")
     ap.add_argument("--raw", default=str(RAW_PATH))
     ap.add_argument("--out", default=str(OUT_PATH))

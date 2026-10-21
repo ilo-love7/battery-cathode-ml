@@ -35,6 +35,8 @@ DEFAULT_DATA = ROOT / "data" / "processed" / "mp_voltage.csv"
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     args = list(sys.argv[1:] if argv is None else argv)
     if "--data" not in args:
         args += ["--data", str(DEFAULT_DATA)]

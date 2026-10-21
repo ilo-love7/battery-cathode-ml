@@ -152,6 +152,8 @@ def fetch_summary(key: str, max_rows: int, elements: list[str]) -> "list[dict]":
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="从 Materials Project 拉取真实电池数据")
     ap.add_argument("--what", choices=["electrodes", "summary", "all"], default="electrodes")
     ap.add_argument("--key", default=None, help="MP API Key（省略则读环境变量/文件）")

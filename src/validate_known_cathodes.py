@@ -51,6 +51,8 @@ KNOWN_CATHODES = [
 
 
 def main() -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     models = load_models()
     if "voltage" not in models:
         print("[ERROR] 缺少电压模型，请先运行 train_voltage.py")

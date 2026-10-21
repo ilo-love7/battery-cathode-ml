@@ -60,6 +60,8 @@ def write_poscar(st: dict, path: Path):
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="导出 CGCNN 训练目录")
     ap.add_argument("--dataset", default="data/raw/matbench_perovskites.json.gz")
     ap.add_argument("--out-dir", default="cgcnn_data")

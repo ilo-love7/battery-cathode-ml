@@ -54,6 +54,8 @@ KEEP = ["material_id", "formula", "formation_energy_per_atom", "band_gap",
 
 
 def main(argv=None) -> int:
+    from console import enable_utf8_stdout
+    enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="清洗 MP 摘要为外部验证集")
     ap.add_argument("--raw", default=str(RAW_PATH))
     ap.add_argument("--out", default=str(OUT_PATH))
