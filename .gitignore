@@ -108,3 +108,6 @@ data/raw/mp_*.csv
 
 # CGCNN 推理用的 demo 结构（10 个常见正极，体积很小，便于离线演示）
 !data/raw/mp_structures_cathodes.json.gz
+
+# 双塔电压模型推理用的 demo 电极对（10 个常见正极，含结构+真实电压）
+!data/raw/mp_voltage_pairs_demo.json.gz

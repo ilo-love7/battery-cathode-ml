@@ -3,6 +3,39 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.0] - 2026-10-21
+
+**核心变化：双塔电压模型接入 CLI —— 化学式进去、电压出来。**
+
+### 新增
+
+- `src/fetch_mp_structures.py --mode pairs`：按化学式取**插入电极对**
+  （两相结构 + MP 真实电压 + id_charge/id_discharge），实测 10/12 个常见正极命中
+- `src/predict_voltage_cgcnn.py`：**双塔 CGCNN 电压推理 CLI**
+  - `--pairs`：读电极对文件（仓库内附 10 个常见正极 demo，离线可用）
+  - `--formulas`：给化学式联网取电极对（需 MP Key），自动过滤 >6 V 的非物理条目
+  - **按数据划分分组报告精度**（train / val / test / unseen），避免拿训练样本冒充精度：
+
+    | 分组 | n | MAE |
+    |---|---|---|
+    | 训练集内（in-sample，仅供参考） | 7 | 0.1435 V |
+    | **测试划分（held-out，可信）** | 2 | **0.3855 V**（与完整测试集 0.3525 V 一致） |
+
+- `data/raw/mp_voltage_pairs_demo.json.gz` 随仓库分发（10 条电极对，含 `dataset_split` 标注）
+- 测试：demo 电极对 schema + **必须包含 held-out 样本**（防止 demo 失真）
+
+### 变更
+
+- `build_pair_net(pretrained=None)` 不再打印误导性的"随机初始化"警告
+- README 4.2 小节补充 CLI 用法；项目报告附录 H.5 更新为「已接入」（原为下一步）
+- 测试 140 → **142**；版本 1.7.0 → 1.8.0
+
+### 说明（诚实标注）
+
+MP 的 Li 插入电极**全库**（2,774 条）都用于训练，因此任何来自该库的 demo 电极对
+大多是 in-sample；无偏指标只能看训练脚本的 held-out 划分（0.3525 V）
+或按成分分组的模型（0.4007 V）。CLI 已按分组分别展示，不再混为一谈。
+
 ## [1.7.0] - 2026-10-21
 
 **核心变化：电压预测改用「两相结构对」端到端建模，MAE 从 0.419 V 降到 0.353 V。**

@@ -128,6 +128,72 @@ def fetch_formulas(key: str, formulas: list) -> list:
     return rows
 
 
+def fetch_pairs(key: str, formulas: list, exact: bool = True) -> list:
+    """按化学式取**插入电极对**（两相结构 + 真实电压），供电压模型推理/验证。
+
+    先用 ``insertion_electrodes.search(formula=...)`` 找候选，再按
+    ``formula_discharge`` 精确匹配（``exact=True``）取第一条；随后用
+    ``summary.search(material_ids=[...])`` 取两相结构。
+    """
+    from mp_api.client import MPRester
+
+    elec_fields = ["battery_formula", "formula_charge", "formula_discharge",
+                   "average_voltage", "capacity_grav", "id_charge", "id_discharge",
+                   "max_delta_volume", "battery_type"]
+    rows = []
+    with MPRester(key) as mpr:
+        for f in formulas:
+            print(f"[GET] electrode pairs for {f} ...")
+            try:
+                docs = mpr.materials.insertion_electrodes.search(
+                    working_ion="Li", formula=f, fields=elec_fields)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  [FAIL] {f}: {exc}")
+                continue
+            if not docs:
+                print(f"  [SKIP] {f}: 无电极记录")
+                continue
+            cands = [d for d in docs if d.id_charge and d.id_discharge]
+            if exact:
+                exact_c = [d for d in cands if str(d.formula_discharge) == f]
+                if exact_c:
+                    cands = exact_c
+            if not cands:
+                print(f"  [SKIP] {f}: 无成对 id")
+                continue
+            best = min(cands, key=lambda d: abs(float(d.average_voltage or 0) - 3.7))
+            ids = [str(best.id_charge), str(best.id_discharge)]
+            try:
+                st_docs = mpr.materials.summary.search(material_ids=ids,
+                                                       fields=["material_id", "nsites", "structure"])
+            except Exception as exc:  # noqa: BLE001
+                print(f"  [FAIL] {f} 结构: {exc}")
+                continue
+            smap = {str(d.material_id): d.structure for d in st_docs if d.structure is not None}
+            st_c, st_d = smap.get(str(best.id_charge)), smap.get(str(best.id_discharge))
+            if st_c is None or st_d is None:
+                print(f"  [SKIP] {f}: 结构缺失（{len(smap)}/2）")
+                continue
+            rows.append({
+                "query_formula": f,
+                "battery_formula": best.battery_formula,
+                "formula_charge": best.formula_charge,
+                "formula_discharge": best.formula_discharge,
+                "average_voltage_true_V": float(best.average_voltage),
+                "capacity_grav": getattr(best, "capacity_grav", None),
+                "max_delta_volume": getattr(best, "max_delta_volume", None),
+                "id_charge": str(best.id_charge),
+                "id_discharge": str(best.id_discharge),
+                "n_charge": st_c.num_sites if hasattr(st_c, "num_sites") else len(st_c),
+                "structure_charge": st_c.as_dict(),
+                "structure_discharge": st_d.as_dict(),
+            })
+            print(f"  -> {best.formula_charge} -> {best.formula_discharge} "
+                  f"(V_true={float(best.average_voltage):.3f}) ids={best.id_charge}/{best.id_discharge}")
+    print(f"[OK ] {len(rows)}/{len(formulas)} 个化学式取到电极对")
+    return rows
+
+
 def fetch_ids(key: str, ids: list) -> list:
     """按 material_id 批量取结构（每批 100）。"""
     from mp_api.client import MPRester
@@ -156,7 +222,7 @@ def main(argv=None) -> int:
     from console import enable_utf8_stdout
     enable_utf8_stdout()
     ap = argparse.ArgumentParser(description="从 Materials Project 拉取晶体结构")
-    ap.add_argument("--mode", choices=["li", "formulas", "ids"], default="li")
+    ap.add_argument("--mode", choices=["li", "formulas", "ids", "pairs"], default="li")
     ap.add_argument("--n", type=int, default=8000, help="li 模式条数")
     ap.add_argument("--formulas", default="", help="逗号分隔化学式（formulas 模式）")
     ap.add_argument("--ids", default="", help="逗号分隔 material_id（ids 模式）")
@@ -177,6 +243,13 @@ def main(argv=None) -> int:
             return 2
         rows = fetch_formulas(key, fml)
         out = Path(args.out) if args.out else RAW / "mp_structures_formulas.json.gz"
+    elif args.mode == "pairs":
+        fml = [f.strip() for f in args.formulas.split(",") if f.strip()]
+        if not fml:
+            print("[ERROR] --formulas 为空（pairs 模式）")
+            return 2
+        rows = fetch_pairs(key, fml)
+        out = Path(args.out) if args.out else RAW / "mp_voltage_pairs.json.gz"
     else:
         ids = [i.strip() for i in args.ids.split(",") if i.strip()]
         if args.ids_file:

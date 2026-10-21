@@ -42,6 +42,7 @@ PY_MODULES = [
     "models",
     "predictor",
     "predict_cgcnn",
+    "predict_voltage_cgcnn",
     "prepare_data",
     "prepare_mp_data",
     "prepare_mp_summary",
@@ -66,7 +67,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.7.0",
+    version="1.8.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

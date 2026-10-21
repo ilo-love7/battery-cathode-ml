@@ -120,3 +120,29 @@ class TestVoltageStructTrainingScript:
         assert {"formula", "formula_canon", "average_voltage_V", "delta_vol",
                 "lith_lat_volume", "frame_lat_volume"} <= set(df.columns)
         assert df["has_both_structures"].sum() > 0.9 * len(df)
+
+class TestDemoVoltagePairs:
+    """双塔电压 CLI 用的 demo 电极对文件：schema + 划分标注（离线可检查）。"""
+
+    PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_demo.json.gz"
+
+    def test_file_exists_with_required_keys(self):
+        if not self.PAIRS.exists():
+            pytest.skip("未随仓库提供 demo 电极对文件")
+        rows = json.load(gzip.open(self.PAIRS, "rt", encoding="utf-8"))
+        assert len(rows) >= 5
+        required = {"query_formula", "formula_charge", "formula_discharge",
+                    "average_voltage_true_V", "id_charge", "id_discharge",
+                    "structure_charge", "structure_discharge", "dataset_split"}
+        for r in rows:
+            assert required <= set(r), sorted(required - set(r))
+            assert r["structure_charge"].get("sites") and r["structure_discharge"].get("sites")
+
+    def test_split_labels_are_honest(self):
+        """至少要有一条 held-out（test/unseen）样本，否则 demo 会拿训练样本冒充精度。"""
+        if not self.PAIRS.exists():
+            pytest.skip("未随仓库提供 demo 电极对文件")
+        rows = json.load(gzip.open(self.PAIRS, "rt", encoding="utf-8"))
+        labels = {r["dataset_split"] for r in rows}
+        assert labels <= {"train", "val", "test", "unseen", "unknown"}
+        assert labels & {"test", "unseen"}, f"没有 held-out 样本: {labels}"

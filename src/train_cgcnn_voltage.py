@@ -78,16 +78,17 @@ def build_pair_net(pretrained: "Path | None", atom_fea_len: int, n_conv: int,
             return self.head(x).squeeze(1)
 
     encoder = CrystalGraphConvNet(atom_fea_len, n_conv, atom_fea_len, 1)
-    if pretrained is not None and Path(pretrained).exists():
-        ckpt = torch.load(pretrained, map_location="cpu", weights_only=False)
-        enc = CrystalGraphConvNet(ckpt.get("atom_fea_len", 64), ckpt.get("n_conv", 3),
-                                  ckpt.get("h_fea_len", 128), ckpt.get("n_h", 1))
-        enc.load_state_dict(ckpt["state_dict"])
-        encoder.embedding.load_state_dict(enc.embedding.state_dict())
-        encoder.convs.load_state_dict(enc.convs.state_dict())
-        print(f"编码器初始化自 {Path(pretrained).name}（训练于 {ckpt.get('trained_on')}）")
-    else:
-        print("[WARN] 未找到预训练权重，编码器随机初始化")
+    if pretrained is not None:
+        if Path(pretrained).exists():
+            ckpt = torch.load(pretrained, map_location="cpu", weights_only=False)
+            enc = CrystalGraphConvNet(ckpt.get("atom_fea_len", 64), ckpt.get("n_conv", 3),
+                                      ckpt.get("h_fea_len", 128), ckpt.get("n_h", 1))
+            enc.load_state_dict(ckpt["state_dict"])
+            encoder.embedding.load_state_dict(enc.embedding.state_dict())
+            encoder.convs.load_state_dict(enc.convs.state_dict())
+            print(f"编码器初始化自 {Path(pretrained).name}（训练于 {ckpt.get('trained_on')}）")
+        else:
+            print(f"[WARN] 指定的预训练权重 {pretrained} 不存在，编码器随机初始化")
     return PairVoltageNet(encoder).to(device)
 
 
