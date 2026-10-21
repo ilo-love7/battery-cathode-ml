@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -51,6 +52,12 @@ MODEL_FILES = {
     "capacity": "models_capacity.pkl",
 }
 
+# conformal 校准结果（conformal.py 产出）；存在时预测会附带 90% 区间
+CONFORMAL_FILES = {
+    "voltage": "conformal_voltage.json",
+    "capacity": "conformal_capacity.json",
+}
+
 
 # --------------------------------------------------------------------------- #
 # 模型加载
@@ -64,6 +71,35 @@ def load_models(results_dir: Union[str, Path, None] = None) -> Dict[str, dict]:
         if path.exists():
             models[key] = load_pickle(str(path))
     return models
+
+
+@lru_cache(maxsize=8)
+def _load_conformal(tag: str, results_dir: str | None = None) -> Optional[dict]:
+    """读取 conformal 校准结果（带缓存；缺失返回 None）。"""
+    path = (Path(results_dir) if results_dir else ROOT / "results") / CONFORMAL_FILES[tag]
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _confidence(spread: float, q: float) -> str:
+    """结合「两模型分歧」与「conformal 区间半宽」给出可信度分级。
+
+    规则（写进文档，避免玄学）：
+      spread ≤ 0.25q  -> High（局部一致且区间窄）
+      spread ≤ 0.75q  -> Medium
+      否则            -> Low（两模型分歧已接近整体区间宽度）
+    """
+    if not q or q <= 0:
+        return "Unknown"
+    if spread <= 0.25 * q:
+        return "High"
+    if spread <= 0.75 * q:
+        return "Medium"
+    return "Low"
 
 
 # --------------------------------------------------------------------------- #
@@ -189,6 +225,14 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
                 "Voltage_ensemble_V": round(pred["ens"], 3),
                 "Voltage_spread": round(pred["spread"], 3),
             })
+            conf = _load_conformal("voltage")
+            if conf:
+                q = float(conf.get("q_halfwidth", 0.0))
+                result.update({
+                    "Voltage_pi90_low": round(pred["ens"] - q, 3),
+                    "Voltage_pi90_high": round(pred["ens"] + q, 3),
+                    "Voltage_confidence": _confidence(pred["spread"], q),
+                })
             if pred["ens"] > 4.0:
                 result["voltage_level"] = "High voltage (>4 V)"
             elif pred["ens"] > 3.5:
@@ -210,6 +254,14 @@ def predict_single(formula: str, models: Dict[str, dict]) -> Dict:
                 "Capacity_ensemble_mAh_g": round(pred["ens"], 1),
                 "Capacity_spread": round(pred["spread"], 1),
             })
+            conf = _load_conformal("capacity")
+            if conf:
+                q = float(conf.get("q_halfwidth", 0.0))
+                result.update({
+                    "Capacity_pi90_low": round(pred["ens"] - q, 1),
+                    "Capacity_pi90_high": round(pred["ens"] + q, 1),
+                    "Capacity_confidence": _confidence(pred["spread"], q),
+                })
 
     return result
 
@@ -264,7 +316,9 @@ def predict_material_properties(formulas: Union[str, List[str]],
         if col in df.columns:
             main_cols.append(col)
     for col in ("Egap_spread", "Eform_spread", "Eform_per_atom_eV", "Voltage_spread",
-                "Capacity_spread"):
+                "Voltage_pi90_low", "Voltage_pi90_high", "Voltage_confidence",
+                "Capacity_spread", "Capacity_pi90_low", "Capacity_pi90_high",
+                "Capacity_confidence"):
         if col in df.columns:
             main_cols.append(col)
     return df[[c for c in main_cols if c in df.columns]]
@@ -310,7 +364,11 @@ def screen_candidates(candidates_file: Union[str, Path, None] = None,
         }
         row.update({k: pred.get(k) for k in
                     ("Egap_ensemble_eV", "Eform_ensemble_eV_fu", "Eform_per_atom_eV",
-                     "Voltage_ensemble_V", "Capacity_ensemble_mAh_g")})
+                     "Voltage_ensemble_V", "Voltage_confidence",
+                     "Capacity_ensemble_mAh_g", "Capacity_confidence")})
+        if "Voltage_pi90_high" in pred:
+            row["Voltage_pi90_width"] = round(
+                pred["Voltage_pi90_high"] - pred["Voltage_pi90_low"], 3)
         # 理论比容量（物理定义，n_Li 已知时优先使用）
         try:
             counts = parse_formula(str(r["formula"]))

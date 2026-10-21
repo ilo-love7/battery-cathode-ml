@@ -3,6 +3,44 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.0] - 2026-10-21
+
+**核心变化：引入结构信息突破成分上限 + 把「分歧度」升级为有覆盖率保证的预测区间。**
+
+### 新增
+
+- `src/structure_features.py`：21 维结构描述符（晶格参数/体积、近邻距离统计、原子对距离统计、
+  按元素分组的近邻距离统计），全部对周期边界取最小镜像距离，纯 CPU
+- `src/prepare_struct_features.py`：把 matbench_perovskites 的 18,928 个结构固化为
+  `data/processed/perovskites_struct.csv.gz`（1.2 MB，随仓库分发 → CI/离线可复现）
+- `src/train_ef_struct.py`：**特征集对照实验**（同一数据、同一超参数、同一协议）
+
+  | 特征集 | random 5 折 MAE | GroupKFold MAE | R² (random) |
+  |---|---|---|---|
+  | comp（33 统计 + 元素分数） | 0.4837 | 0.4048 | 0.2516 |
+  | struct（21 维结构描述符） | 0.4161 | — | 0.4171 |
+  | **comp+struct** | **0.1929** | **0.1930** | **0.8571** |
+
+  → **MAE 降低 60%，R² 0.25 → 0.86，且首次低于「成分不可约下限」0.379 eV/胞**；
+  按成分分组的严格协议下几乎无衰减（0.1930），说明不是靠记成分。
+  距 matbench 榜首结构 GNN（coGN 0.0269 eV/胞）仍有差距，属通往 CGCNN 的 CPU 台阶。
+- `src/conformal.py`：**split conformal 不确定性校准**（有限样本修正分位数 + K 折交叉校准）
+  - 电压：90% 区间半宽 **±1.0001 V**，交叉校准实测覆盖率 **90.0%**（可靠性曲线几乎落在对角线上）
+  - 容量：**±75.7751 mAh/g**，覆盖率 **90.1%**
+  - 关键诊断：两模型分歧 `|RF-HGB|/2` 只有真实 MAE 的 **17%** → 用它当不确定性会严重低估
+- `predictor` 输出 conformal 区间：`Voltage_pi90_low/high`、`Voltage_confidence`（同样用于容量），
+  候选表增加 `Voltage_pi90_width`
+- `tests/test_uncertainty.py`：conformal 分位数/覆盖率保证/可靠性曲线单调、可信度分级、
+  结构描述符几何正确性（含「单元素胞曾算出 inf」的回归）
+
+### 变更
+
+- CI smoke 增加：conformal 校准（电压+容量）→ 结构感知形成能模型 → 产物校验
+- README / 项目报告（附录 E）/ 项目总结 / CHANGELOG 同步；测试 96 → **111**；版本 1.3.1 → 1.4.0
+- 顺带同步了一处**产物与代码不一致**：已提交的 gap 模型是旧特征代码训练的，
+  用当前代码重训后 MAE 0.4405 → 0.4415（R² 0.687），筛选 Top3 随之更新为
+  LiV₃O₈ 84.8 / Li₂MnSiO₄ 72.2 / Li₂FeSiO₄ 70.5，文档与图表已全部对齐
+
 ## [1.3.1] - 2026-10-21
 
 ### 修复

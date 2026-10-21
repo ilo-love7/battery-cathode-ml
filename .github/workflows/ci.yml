@@ -115,6 +115,14 @@ jobs:
         continue-on-error: true
         run: python src/download_data.py
 
+      - name: Conformal calibration (voltage + capacity)
+        run: |
+          python src/conformal.py --tag voltage
+          python src/conformal.py --tag capacity
+
+      - name: Structure-aware formation energy (CPU baseline)
+        run: python src/train_ef_struct.py
+
       - name: External validation on known cathodes
         run: python src/validate_known_cathodes.py
 
@@ -137,6 +145,10 @@ jobs:
           test -f results/parity_capacity.png
           test -f results/validation_known_cathodes.csv
           test -f results/validation_mp_external.json
+          test -f results/conformal_voltage.json
+          test -f results/conformal_capacity.json
+          test -f results/calibration_voltage.png
+          test -f results/metrics_ef_struct.json
           echo "Pipeline smoke test passed."
 
       - name: Upload results
@@ -152,6 +164,11 @@ jobs:
             results/parity_capacity.png
             results/validation_known_cathodes.csv
             results/validation_mp_external.json
+            results/conformal_voltage.json
+            results/conformal_capacity.json
+            results/calibration_voltage.png
+            results/metrics_ef_struct.json
+            results/parity_ef_struct.png
           if-no-files-found: ignore
 
   security:

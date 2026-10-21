@@ -1,0 +1,34 @@
+{
+  "tag": "voltage",
+  "n_oof": 2672,
+  "alpha": 0.1,
+  "nominal_coverage": 0.9,
+  "q_halfwidth": 1.0001,
+  "unit": "V",
+  "cv_coverage": 0.9001,
+  "mae": 0.4187,
+  "median_halfwidth_ratio": 0.0755,
+  "reliability_curve": [
+    {
+      "nominal": 0.8,
+      "empirical": 0.8001
+    },
+    {
+      "nominal": 0.9,
+      "empirical": 0.9001
+    },
+    {
+      "nominal": 0.95,
+      "empirical": 0.9495
+    },
+    {
+      "nominal": 0.98,
+      "empirical": 0.9809
+    },
+    {
+      "nominal": 0.99,
+      "empirical": 0.9899
+    }
+  ],
+  "note": "区间 = 预测值 ± q_halfwidth；q 由 OOF 绝对残差的分位数给出（有限样本修正）。cv_coverage 为 K 折交叉校准下测得的真实覆盖率，用作诚实的覆盖估计。"
+}
