@@ -146,3 +146,35 @@ class TestDemoVoltagePairs:
         labels = {r["dataset_split"] for r in rows}
         assert labels <= {"train", "val", "test", "unseen", "unknown"}
         assert labels & {"test", "unseen"}, f"没有 held-out 样本: {labels}"
+
+
+class TestStructDrivenScreening:
+    """结构驱动筛选的产物契约（离线检查，不需要 torch）。"""
+
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+    FALLBACK = ROOT / "results" / "cathode_ranking_struct_fallback.csv"
+
+    def test_metrics_exist_and_account_for_all_candidates(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["n_candidates"] == 40
+        assert m["n_ranked_with_structure"] + m["n_fallback_without_structure"] == 40
+        assert m["weights"]["stability"] == 0.40
+        # 尺度无关的一致性指标必须存在（两套口径不可比绝对值）
+        assert "stability_rank_correlation_struct_vs_comp" in m
+
+    def test_main_ranking_only_contains_structured_candidates(self):
+        if not (self.RANKED.exists() and self.FALLBACK.exists()):
+            pytest.skip("未生成结构筛选排序表")
+        ranked = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        fallback = pd.read_csv(self.FALLBACK, encoding="utf-8-sig")
+        assert len(ranked) and len(fallback)
+        # 主排名里必须有 CGCNN 结构稳定性；回退表里必须没有
+        assert ranked["cgcnn_ef_eV_atom"].notna().all()
+        assert fallback["cgcnn_ef_eV_atom"].isna().all()
+        # 两个表不能有重复候选
+        assert not (set(ranked["formula"]) & set(fallback["formula"]))
+        # 主排名按分数降序
+        assert ranked["score"].is_monotonic_decreasing

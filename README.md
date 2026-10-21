@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 142 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束与 demo 电极对 schema
+- 144 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema 与结构筛选产物契约
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -283,6 +283,24 @@ CPU 结构描述符（0.193 eV/胞）之上，项目内置了一个**自包含�
 > （如按成分去 MP 查同成分结构），这部分尚未接入预测 CLI。
 
 
+
+### 6. 结构模型驱动的候选筛选（v1.9.0，需 GPU 环境）
+
+`screening_struct.py` 把稳定性从「成分模型（matbench 钙钛矿口径）」换成**CGCNN（MP 含 Li 域，每原子形成能）**，电压优先用**双塔 CGCNN**：
+
+```powershell
+python src/fetch_mp_structures.py --mode formulas --formulas "<40 候选>" --out data/raw/mp_structures_candidates.json.gz
+python src/fetch_mp_structures.py --mode pairs --formulas "<40 候选>" --out data/raw/mp_voltage_pairs_candidates.json.gz
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/screening_struct.py
+```
+
+覆盖率：结构 **31/40**、电极对 20/40。
+**主排名只收录有结构的候选**（31 条），无结构的 9 条（NCA/NMC523/NMC622/富锂/DRX）
+单列 `cathode_ranking_struct_fallback.csv`，因为两套形成能口径不可比（详见 CHANGELOG）。
+结构 vs 成分稳定性的 Spearman ρ = **0.7462**（尺度无关的一致性指标）。
+
+Top 5：LiMn₀.₈Fe₀.₂PO₄(74.8) > Li₂MnSiO₄(73.3) > LiMnPO₄(73.0) > LiMn₀.₆Fe₀.₄PO₄(73.0) > LiV₃O₈(71.8)
+
 ### 4.1 MP 域 CGCNN 与推理 CLI（v1.6.0）
 
 上面的 CGCNN 训练于 matbench 钙钛矿（5 原子单胞）。v1.6.0 把它扩展到**锂电池相关体系**：
@@ -407,13 +425,14 @@ battery-cathode-ml/
 │   ├── train_cgcnn_voltage.py   # ★ 双塔 CGCNN：两相结构 -> 电压（端到端）
 │   ├── voltage_from_cgcnn.py    # ★ CGCNN-ΔE 物理路径（负面结果对照）
 │   ├── predict_voltage_cgcnn.py # ★ 双塔 CGCNN 电压推理 CLI（两相结构 -> 电压）
-│   ├── screening.py             # 候选筛选排序
+│   ├── screening.py             # 候选筛选排序（成分模型）
+│   ├── screening_struct.py      # ★ 结构模型驱动的候选筛选（CGCNN + 双塔电压）
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 142 个单元测试
+├── tests/                       # 144 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -441,7 +460,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 142 个测试
+pytest tests/ -v                                             # 144 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -479,7 +498,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.8.0}
+  version = {1.9.0}
 }
 ```
 

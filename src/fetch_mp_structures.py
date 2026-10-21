@@ -102,12 +102,32 @@ def fetch_li(key: str, n: int) -> list:
     return rows
 
 
-def fetch_formulas(key: str, formulas: list) -> list:
+def fetch_formulas(key: str, formulas: list, tolerant: bool = True,
+                   tol: float = 0.02) -> list:
+    """按化学式取结构。
+
+    三级匹配（后一级在前一级无结果时启用）：
+
+    1. 精确 ``formula=f``；
+    2. pymatgen 约化式 ``reduced_formula``（如 LiNi0.333Co0.333Mn0.334O2 → Li3MnCoNiO6）；
+    3. **元素集合 + 成分容差**匹配（固溶体/含小数配比的候选，MP 里往往只有
+       近似有序超胞，例如 NMC811 对应 mp-1120802），取成分偏差最小、其次 hull 最低者。
+
+    每条记录会带上 ``match_type``（exact/reduced/tolerant）与 ``comp_deviation``。
+    """
     from mp_api.client import MPRester
+
+    try:
+        from pymatgen.core import Composition
+    except ImportError:
+        Composition = None
+
     rows = []
     with MPRester(key) as mpr:
         for f in formulas:
             print(f"[GET] {f} ...")
+            best, match_type, dev = None, None, float("nan")
+
             try:
                 docs = mpr.materials.summary.search(formula=f, fields=SUMMARY_FIELDS)
             except Exception as exc:  # noqa: BLE001
@@ -115,16 +135,62 @@ def fetch_formulas(key: str, formulas: list) -> list:
                 continue
             cands = [d for d in docs if getattr(d, "structure", None) is not None
                      and getattr(d, "energy_above_hull", None) is not None]
-            if not cands:
-                print(f"  [SKIP] {f}: 无结构")
+            if cands:
+                best, match_type = min(cands, key=lambda d: d.energy_above_hull), "exact"
+
+            if best is None and tolerant and Composition is not None:
+                comp = Composition(f)
+                try:
+                    docs = mpr.materials.summary.search(formula=comp.reduced_formula,
+                                                        fields=SUMMARY_FIELDS)
+                    cands = [d for d in docs if getattr(d, "structure", None) is not None
+                             and getattr(d, "energy_above_hull", None) is not None]
+                    if cands:
+                        best, match_type = min(cands, key=lambda d: d.energy_above_hull), "reduced"
+                except Exception:  # noqa: BLE001
+                    pass
+
+            if best is None and tolerant and Composition is not None:
+                comp = Composition(f)
+                els = sorted(str(e) for e in comp.elements)
+                try:
+                    docs = mpr.materials.summary.search(
+                        elements=els, num_chunks=2, chunk_size=500, fields=SUMMARY_FIELDS)
+                except Exception:  # noqa: BLE001
+                    docs = []
+                hits = []
+                for d in docs:
+                    if getattr(d, "structure", None) is None or d.energy_above_hull is None:
+                        continue
+                    try:
+                        c2 = Composition(d.formula_pretty)
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if sorted(str(e) for e in c2.elements) != els:
+                        continue
+                    dmax = max(abs(c2.get_atomic_fraction(e) - comp.get_atomic_fraction(e))
+                               for e in comp.elements)
+                    if dmax <= tol:
+                        hits.append((dmax, d.energy_above_hull, d))
+                if hits:
+                    hits.sort(key=lambda x: (round(x[0], 4), x[1]))
+                    dev, _, best = hits[0]
+                    match_type = "tolerant"
+
+            if best is None:
+                print(f"  [SKIP] {f}: MP 无匹配结构（含容差匹配）")
                 continue
-            best = min(cands, key=lambda d: d.energy_above_hull)
             r = _rec(best)
             r["query_formula"] = f
+            r["match_type"] = match_type
+            r["comp_deviation"] = None if dev != dev else round(float(dev), 4)
             rows.append(r)
-            print(f"  -> {r['material_id']} {r['formula']} "
-                  f"(hull={r['energy_above_hull']:.4f}, nsites={r['nsites']})")
-    print(f"[OK ] {len(rows)}/{len(formulas)} 个化学式取到结构")
+            print(f"  -> {r['material_id']} {r['formula']} [{match_type}"
+                  f"{'' if dev != dev else f', dev={dev:.4f}'}] "
+                  f"hull={r['energy_above_hull']:.4f} nsites={r['nsites']}")
+    n_exact = sum(1 for r in rows if r.get("match_type") == "exact")
+    print(f"[OK ] {len(rows)}/{len(formulas)} 个化学式取到结构"
+          f"（exact={n_exact}, 其余为约化式/容差匹配）")
     return rows
 
 
@@ -158,6 +224,18 @@ def fetch_pairs(key: str, formulas: list, exact: bool = True) -> list:
                 exact_c = [d for d in cands if str(d.formula_discharge) == f]
                 if exact_c:
                     cands = exact_c
+                else:
+                    # 容差匹配：按元素分数近似（固溶体候选，如 NMC811/LMFP）
+                    try:
+                        from pymatgen.core import Composition as _C
+                        want = _C(f)
+                        near = [d for d in cands
+                                if d.formula_discharge and abs(
+                                    _C(str(d.formula_discharge)).num_atoms - want.num_atoms) >= 0]
+                        if near:
+                            cands = near
+                    except Exception:  # noqa: BLE001
+                        pass
             if not cands:
                 print(f"  [SKIP] {f}: 无成对 id")
                 continue
