@@ -141,6 +141,8 @@ def main(argv=None) -> int:
     ap.add_argument("--data", default=str(STRUCT_PATH))
     ap.add_argument("--tag", default="ef_struct")
     ap.add_argument("--skip-group", action="store_true", help="只跑 random 协议（更快）")
+    ap.add_argument("--subset", type=int, default=0,
+                    help="只抽样 N 条用于快速冒烟（0=全量；CI 用，指标不用于报数）")
     args = ap.parse_args(argv)
 
     path = Path(args.data)
@@ -150,6 +152,9 @@ def main(argv=None) -> int:
         return 2
 
     df = pd.read_csv(path, encoding="utf-8-sig")
+    if args.subset and args.subset < len(df):
+        df = df.sample(n=args.subset, random_state=RNG).reset_index(drop=True)
+        print(f"[冒烟模式] 随机抽样 {args.subset} 条（指标仅供流程校验，勿用于报数）")
     print(f"样本: {len(df)}  唯一成分: {df['formula_canon'].nunique()}")
 
     struct_cols = [c for c in df.columns if c not in
@@ -214,6 +219,8 @@ def main(argv=None) -> int:
                      "uses_structure": True, "target": TARGET}, f)
 
     payload = {
+        "mode": "subset-smoke" if args.subset else "full",
+        "subset": int(args.subset),
         "target": TARGET,
         "n_samples": int(len(y)),
         "n_unique_compositions": int(len(set(groups))),

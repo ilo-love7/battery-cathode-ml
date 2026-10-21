@@ -120,8 +120,8 @@ jobs:
           python src/conformal.py --tag voltage
           python src/conformal.py --tag capacity
 
-      - name: Structure-aware formation energy (CPU baseline)
-        run: python src/train_ef_struct.py
+      - name: Structure-aware formation energy (CPU baseline, smoke subset)
+        run: python src/train_ef_struct.py --subset 4000 --skip-group
 
       - name: External validation on known cathodes
         run: python src/validate_known_cathodes.py

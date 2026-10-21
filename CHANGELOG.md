@@ -3,6 +3,15 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.1] - 2026-10-21
+
+### 变更
+
+- CI 的结构感知实验改用冒烟抽样（`--subset 4000 --skip-group`，本机 62 s，全量约 4 分钟），
+  缩短 smoke job 时长；新参数只影响 CI 冒烟，报告与 README 中的数字仍来自全量运行。
+- `train_ef_struct.py` 新增 `--subset`，并在 metrics JSON 中标记 `mode: subset-smoke|full`，
+  避免抽样指标被误当成正式结果。
+
 ## [1.4.0] - 2026-10-21
 
 **核心变化：引入结构信息突破成分上限 + 把「分歧度」升级为有覆盖率保证的预测区间。**
