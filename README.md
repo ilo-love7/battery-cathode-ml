@@ -301,7 +301,6 @@ CI（`.github/workflows/ci.yml`）包含：语法门禁 → lint/format（非阻
 
 - [Materials Project](https://materialsproject.org) / [Matbench](https://matbench.materialsproject.org) — 公开数据与基准
 - [Scikit-learn](https://scikit-learn.org) — 建模基础设施
-- 早期两个 AI 生成的原型 — 提供了初始代码骨架
 
 ---
 
