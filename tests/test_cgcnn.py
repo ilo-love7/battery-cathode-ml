@@ -166,15 +166,31 @@ class TestConsoleEncoding:
             env=env, timeout=60)
         assert proc.returncode == 0, proc.stderr
 
-    def test_cli_help_survives_gbk(self):
+    def test_all_argparse_clis_survive_gbk(self):
+        """自动发现所有带 argparse 的 CLI，在 GBK 环境下逐个跑 --help。
+
+        不带 argparse 的脚本（如 screening.py）传 --help 会真的执行流程，
+        因此按「源码里有 argparse.ArgumentParser」来筛选，避免误判。
+        """
+        import glob
         import os
         import subprocess
 
+        scripts = []
+        for path in sorted(glob.glob(str(ROOT / "src" / "*.py"))):
+            text = open(path, encoding="utf-8").read()
+            if "argparse.ArgumentParser" in text and "def main(" in text:
+                scripts.append(path)
+        assert len(scripts) >= 10, f"发现到的 argparse CLI 太少: {scripts}"
+
         env = {**os.environ, "PYTHONIOENCODING": "gbk"}
-        for script in ("train_cgcnn.py", "predictor.py", "conformal.py",
-                       "train_voltage.py", "screening.py"):
+        failures = []
+        for path in scripts:
             proc = subprocess.run(
-                [sys.executable, str(ROOT / "src" / script), "--help"],
+                [sys.executable, path, "--help"],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 env=env, timeout=90)
-            assert proc.returncode == 0, (script, proc.stderr[-500:])
+            if proc.returncode != 0:
+                failures.append((os.path.basename(path), proc.returncode,
+                                 (proc.stderr or "")[-200:]))
+        assert not failures, failures

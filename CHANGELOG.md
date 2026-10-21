@@ -3,6 +3,22 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.5.2] - 2026-10-21
+
+### 修复
+
+- **v1.5.1 的回归测试本身有缺陷，导致 CI 全红**：
+  - `screening.py` / `validate_known_cathodes.py` 没有 argparse，传 `--help` 会**真的执行流程**，
+    在无模型的干净仓库里必然失败。现改为**自动发现**所有含 `argparse.ArgumentParser` 的 CLI
+    （并要求至少 10 个，防漏测），只对这些脚本跑 `--help`。
+  - 测试里误用未导入的 `io.open`，改为 `open()`。
+- 教训记录：新增测试必须在**干净副本**上验证（CI 环境没有 `results/*.pkl`），
+  本地"能过"不代表 CI 能过。
+
+### 变更
+
+- 版本 1.5.1 → 1.5.2（测试数仍为 130）
+
 ## [1.5.1] - 2026-10-21
 
 ### 修复
