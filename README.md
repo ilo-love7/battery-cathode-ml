@@ -8,7 +8,7 @@
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/ilo-love7/battery-cathode-ml/issues)
 
-**🌟 AI for Science | Materials Informatics | Battery Research**
+**🔋 Materials Informatics | Battery Research | Reproducible ML**
 
 </div>
 
@@ -223,9 +223,9 @@ battery-cathode-ml/
 │   ├── voltage.py               # 理论容量与形成能近似电压
 │   ├── download_data.py         # Matbench 数据下载
 │   ├── prepare_data.py          # 数据清洗
-│   ├── train_gap.py             # 任务 A：带隙
-│   ├── train_ef.py              # 任务 B：形成能
-│   ├── train_voltage.py         # 任务 C：平均电压
+│   ├── train_gap.py             # 带隙模型
+│   ├── train_ef.py              # 形成能模型
+│   ├── train_voltage.py         # 平均电压模型
 │   ├── screening.py             # 候选筛选排序
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据

@@ -115,12 +115,12 @@ def main(argv=None) -> int:
         print("\n[SKIP] 模型训练")
     else:
         print(f"\n{'=' * 70}\n  步骤 2: 模型训练\n{'=' * 70}")
-        ok &= run_script("train_gap.py", "子任务 2.1: 带隙预测模型")
+        ok &= run_script("train_gap.py", "2.1 带隙预测模型")
         if not args.fast:
-            ok &= run_script("train_ef.py", "子任务 2.2: 形成能预测模型")
+            ok &= run_script("train_ef.py", "2.2 形成能预测模型")
         else:
             print("\n[SKIP] 形成能模型（--fast）")
-        ok &= run_script("train_voltage.py", "子任务 2.3: 平均电压预测模型")
+        ok &= run_script("train_voltage.py", "2.3 平均电压预测模型")
 
     # 步骤 3：候选筛选
     if args.skip_screening:

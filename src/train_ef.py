@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""任务 B：形成能预测模型（成分特征 → E_form）。
+"""形成能预测模型（成分特征 → E_form）。
 
 数据: matbench_perovskites (MP DFT 钙钛矿形成能, eV/5原子单胞, RPBE 泛函)
 特征: 33 统计特征 + 训练集元素宇宙上的元素分数特征
