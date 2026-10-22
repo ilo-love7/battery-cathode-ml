@@ -3,6 +3,22 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.22.1] - 2026-10-21
+
+### 修复
+
+- **构造两相的产物未入库** → 干净副本（CI 环境）里 `TestVoltagePairConstruction` 被 skip，
+  等于**CI 不再校验覆盖率与构造残差**。已放行 `data/raw/mp_voltage_pairs_all.json.gz`
+  与 `mp_voltage_pairs_constructed.json.gz`（合计约 200 KB），CI 现在会真正跑这两条断言。
+- 教训（记入通讯录）：**"本地通过"与"CI 通过"的差别往往就是某个未入库的产物** ——
+  凡是新增产物，都要检查 `.gitignore` 是否放行，或在测试里显式 `skip`，
+  不能默认它"应该在那儿"。
+
+### 变更
+
+- 测试 198 → **同上**（干净副本由 196 通过 + 2 skip 变为 197 通过 + 1 skip）
+- 版本 1.22.0 → 1.22.1
+
 ## [1.22.0] - 2026-10-21
 
 **三件事：参考表再补 3 篇核验文献、法规情景阈值、构造两相提升电压覆盖率（附负面结论）。**

@@ -125,3 +125,7 @@ data/raw/mp_*.csv
 
 # 无序系综代表结构（v1.13.0）：DRX/富锂的随机装饰系综
 !data/raw/mp_structures_candidates_ensemble.json.gz
+
+# 构造两相（v1.22.0）：MP + 构造的合并电极对，随仓库分发以便 CI 校验收率与残差
+!data/raw/mp_voltage_pairs_all.json.gz
+!data/raw/mp_voltage_pairs_constructed.json.gz
