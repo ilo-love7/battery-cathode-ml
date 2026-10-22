@@ -122,3 +122,6 @@ data/raw/mp_*.csv
 # 同构替换相（v1.12.0）：9 条缺失候选的选相结果 + 40 条全量（敏感性分析用）
 !data/raw/mp_structures_candidates_polymorph.json.gz
 !data/raw/mp_structures_candidates_polymorph_all.json.gz
+
+# 无序系综代表结构（v1.13.0）：DRX/富锂的随机装饰系综
+!data/raw/mp_structures_candidates_ensemble.json.gz

@@ -61,6 +61,7 @@ STRUCTURES = ROOT / "data" / "raw" / "mp_structures_candidates.json.gz"
 PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_candidates.json.gz"
 PROTOTYPES = ROOT / "data" / "raw" / "mp_structures_candidates_prototype.json.gz"
 POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz"
+ENSEMBLES = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
 CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
 GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
@@ -245,6 +246,8 @@ def main(argv=None) -> int:
                     help="岩盐型原型文件（最后手段；见 generate_prototype_structures.py）")
     ap.add_argument("--polymorphs", default=str(POLYMORPHS),
                     help="同构替换相文件（优先级高于岩盐原型；见 template_substitution.py）")
+    ap.add_argument("--ensemble", default=str(ENSEMBLES),
+                    help="无序系综文件（优先级最高；提供装饰噪声误差条；见 drx_ensemble.py）")
     ap.add_argument("--tag", default="struct")
     ap.add_argument("--no-cgcnn", action="store_true", help="只用成分模型（对照）")
     ap.add_argument("--prefer-struct-gap", action="store_true",
@@ -273,7 +276,25 @@ def main(argv=None) -> int:
                         struct_map[f_] = r["structure"]
                         origin[f_] = "MP弛豫"
                         struct_ids[f_] = r.get("material_id", "")
-        # 第二优先级：同构替换 + MLIP 选相（实测与 MP 结构 bias +0.09 eV/atom、ρ 0.97，
+        # 第二优先级：无序系综的代表结构（系综内 CHGNet 能量最低者），
+        # 并把"装饰噪声"作为误差条带进筛选（v1.13.0）
+        ens_stats = {}
+        if Path(args.ensemble).exists():
+            n_ens = 0
+            with gzip.open(args.ensemble, "rt", encoding="utf-8") as f:
+                for r in json.load(f):
+                    f_ = r.get("query_formula")
+                    if not f_ or not r.get("structure") or f_ in struct_map:
+                        continue
+                    struct_map[f_] = r["structure"]
+                    origin[f_] = "无序系综(CHGNet)"
+                    struct_ids[f_] = r.get("material_id", f"ens:{f_}")
+                    e = r.get("ensemble") or {}
+                    ens_stats[f_] = (e.get("cgcnn_ef_std_eV_atom"), e.get("cgcnn_gap_std_eV"))
+                    n_ens += 1
+            print(f"无序系综代表结构补充: {n_ens} 条 → 结构覆盖 {len(struct_map)}/{len(formulas)}")
+
+        # 第三优先级：同构替换 + MLIP 选相（实测与 MP 结构 bias +0.09 eV/atom、ρ 0.97，
         # 因此可与 MP 结构同层比较；见报告附录 L）
         if Path(args.polymorphs).exists():
             n_poly = 0
@@ -288,7 +309,7 @@ def main(argv=None) -> int:
                     n_poly += 1
             print(f"同构替换相补充: {n_poly} 条 → 结构覆盖 {len(struct_map)}/{len(formulas)}")
 
-        # 第三优先级：岩盐型原型（仅组内可比）
+        # 第四优先级：岩盐型原型（仅组内可比）
         if Path(args.prototypes).exists():
             n_proto = 0
             with gzip.open(args.prototypes, "rt", encoding="utf-8") as f:
@@ -355,9 +376,13 @@ def main(argv=None) -> int:
     # A_comparable：MP 弛豫结构 或 同构替换相（两者实测可比，见 metrics 里的残差）
     # B_prototype ：只有岩盐型原型（仅组内可比）
     df["structure_tier"] = np.where(
-        df["structure_origin"].isin(["MP弛豫", "同构替换(CHGNet)"]), "A_comparable",
+        df["structure_origin"].isin(["MP弛豫", "同构替换(CHGNet)", "无序系综(CHGNet)"]),
+        "A_comparable",
         np.where(df["structure_from_prototype"], "B_prototype", "C_none"))
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
+    # 装饰噪声误差条（仅系综来源的候选有值）
+    df["ef_ens_std_eV_atom"] = [ens_stats.get(f, (np.nan, np.nan))[0] for f in formulas]
+    df["gap_ens_std_eV"] = [ens_stats.get(f, (np.nan, np.nan))[1] for f in formulas]
     df["stability_eV_atom"] = df["cgcnn_ef_eV_atom"].where(df["has_structure"],
                                                            df["comp_ef_eV_atom"])
     df["voltage_V"] = df["cgcnn_voltage_V"].where(df["has_struct_voltage"], df["comp_voltage_V"])
@@ -414,6 +439,8 @@ def main(argv=None) -> int:
     df.loc[df["structure_from_prototype"], "flag"] += "结构为岩盐原型(仅组内可比);"
     df.loc[df["structure_origin"] == "同构替换(CHGNet)",
            "flag"] += "结构为同构替换相(已验证与MP可比);"
+    df.loc[df["structure_origin"] == "无序系综(CHGNet)",
+           "flag"] += "结构为无序系综代表(带装饰噪声误差条);"
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
 
     # ---- 分层产物（tier 已在前面算好，此处只做分组与排序） ----
@@ -445,6 +472,7 @@ def main(argv=None) -> int:
 
     OUT.mkdir(exist_ok=True)
     keep = ["rank", "name", "formula", "family", "structure_origin", "cgcnn_ef_eV_atom",
+            "ef_ens_std_eV_atom", "gap_ens_std_eV",
             "rank_struct", "rank_comp", "rank_shift", "gap_source", "gap_eV",
             "cgcnn_gap_eV", "comp_gap_eV", "gap_diff_eV", "voltage_source", "voltage_V",
             "Q_theoretical_mAh_g", "score", "flag", "struct_material_id"]
@@ -503,6 +531,15 @@ def main(argv=None) -> int:
                             "C_no_structure": int(len(fallback))},
         "n_from_mp_structure": int((df["structure_origin"] == "MP弛豫").sum()),
         "n_from_polymorph_substitution": int((df["structure_origin"] == "同构替换(CHGNet)").sum()),
+        "n_from_ensemble": int((df["structure_origin"] == "无序系综(CHGNet)").sum()),
+        "decoration_noise": {
+            "ef_std_mean_eV_atom": (None if df["ef_ens_std_eV_atom"].dropna().empty
+                                    else round(float(df["ef_ens_std_eV_atom"].mean()), 4)),
+            "gap_std_mean_eV": (None if df["gap_ens_std_eV"].dropna().empty
+                                else round(float(df["gap_ens_std_eV"].mean()), 4)),
+            "note": ("无序系综（随机装饰）带来的预测不确定度；"
+                     "稳定性可忽略，带隙需作为误差条引用"),
+        },
         "polymorph_residual_uncertainty": {
             "n_compared": poly_unc.get("n_compared"),
             "ef_bias_eV_atom": poly_unc.get("ef", {}).get("bias_eV_atom"),

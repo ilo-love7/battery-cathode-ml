@@ -170,9 +170,9 @@ class TestStructDrivenScreening:
         assert tiers["A_comparable"] == m["n_ranked_with_structure"]
         assert tiers["B_prototype_rocksalt"] == m["n_prototype_only"]
         assert tiers["C_no_structure"] == m["n_fallback_without_structure"]
-        # A 层由"MP 结构 + 同构替换相"组成，两者之和必须等于 A 层规模
+        # A 层 = MP 结构 + 同构替换相 + 无序系综代表结构（三者之和必须等于 A 层规模）
         assert (m["n_from_mp_structure"] + m["n_from_polymorph_substitution"]
-                == tiers["A_comparable"])
+                + m.get("n_from_ensemble", 0) == tiers["A_comparable"])
         assert m["weights"]["stability"] == 0.40
         # 尺度无关的一致性指标必须存在（两套口径不可比绝对值）
         assert "stability_rank_correlation_struct_vs_comp" in m
@@ -184,7 +184,8 @@ class TestStructDrivenScreening:
         assert len(ranked)
         # A 层：必须都有结构（MP 或同构替换相），且分数降序
         assert ranked["cgcnn_ef_eV_atom"].notna().all()
-        assert set(ranked["structure_origin"]) <= {"MP弛豫", "同构替换(CHGNet)"}
+        assert set(ranked["structure_origin"]) <= {"MP弛豫", "同构替换(CHGNet)",
+                                                   "无序系综(CHGNet)"}
         assert ranked["score"].is_monotonic_decreasing
 
         sets = [set(ranked["formula"])]
@@ -377,3 +378,73 @@ class TestPolymorphComparability:
         poly = json.load(open(self.METRICS, encoding="utf-8"))["ef"]
         rock = json.load(open(rs, encoding="utf-8"))["ef"]
         assert abs(rock["bias_eV_atom"]) > 5 * abs(poly["bias_eV_atom"])
+
+
+class TestDrxEnsemble:
+    """无序系综（DRX/富锂）：把「装饰噪声」量化成误差条（v1.13.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_drx_ensemble.json"
+    STRUCTS = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
+
+    def test_metrics_schema(self):
+        if not self.METRICS.exists():
+            pytest.skip("未运行无序系综")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["n_targets"] >= 5
+        assert m["n_decorations_per_target"] >= 2
+        for key in ("ef_std_mean_eV_atom", "ef_std_max_eV_atom",
+                    "gap_std_mean_eV", "gap_std_max_eV"):
+            assert key in m
+            assert m[key] >= 0
+        for row in m["per_target"]:
+            assert {"target", "template", "n", "ef_mean", "ef_std", "gap_mean", "gap_std"} <= set(row)
+            assert row["ef_std"] >= 0 and row["gap_std"] >= 0
+
+    def test_ensemble_structures_keep_representative_and_stats(self):
+        if not self.STRUCTS.exists():
+            pytest.skip("未生成系综结构文件")
+        rows = json.load(gzip.open(self.STRUCTS, "rt", encoding="utf-8"))
+        assert len(rows) >= 5
+        for r in rows:
+            assert r["match_type"] == "polymorph_substitution_ensemble"
+            assert r["structure"].get("sites")
+            ens = r["ensemble"]
+            assert ens["n_decorations"] >= 2
+            assert ens["selection"] == "lowest_CHGNet_energy"
+            assert "cgcnn_ef_std_eV_atom" in ens and "cgcnn_gap_std_eV" in ens
+
+    def test_decoration_noise_is_small_vs_model_error(self):
+        """一致性检查：装饰噪声应远小于模型自身误差，否则单装饰结论不可用。"""
+        if not self.METRICS.exists():
+            pytest.skip("未运行无序系综")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["ef_std_mean_eV_atom"] < 0.1, (
+            "装饰噪声过大时，必须改用系综均值而不是单个装饰")
+
+
+class TestEnsembleErrorBars:
+    """系综误差条必须带进筛选产物（带隙噪声不可忽略，稳定性可忽略）。"""
+
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+
+    def test_decoration_noise_is_reported(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        noise = m.get("decoration_noise") or {}
+        assert noise.get("ef_std_mean_eV_atom") is not None
+        # 稳定性噪声应远小于模型误差；带隙噪声则不可忽略（>0.05 eV）
+        assert noise["ef_std_mean_eV_atom"] < 0.1
+        assert noise["gap_std_mean_eV"] > 0.05
+
+    def test_error_columns_present_for_ensemble_candidates(self):
+        if not self.RANKED.exists():
+            pytest.skip("未生成排序表")
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        for col in ("ef_ens_std_eV_atom", "gap_ens_std_eV"):
+            assert col in d.columns
+        ens_rows = d[d["structure_origin"] == "无序系综(CHGNet)"]
+        if len(ens_rows):
+            assert ens_rows["ef_ens_std_eV_atom"].notna().all()
+            assert ens_rows["gap_ens_std_eV"].notna().all()

@@ -1,0 +1,110 @@
+{
+  "n_targets": 9,
+  "n_decorations_per_target": 8,
+  "ef_std_mean_eV_atom": 0.0209,
+  "ef_std_max_eV_atom": 0.0604,
+  "gap_std_mean_eV": 0.1043,
+  "gap_std_max_eV": 0.2608,
+  "per_target": [
+    {
+      "target": "LiNi0.8Co0.15Al0.05O2",
+      "template": "LiNi0.333Co0.333Mn0.334O2",
+      "n": 8,
+      "ef_mean": -1.5566,
+      "ef_std": 0.0051,
+      "ef_best": -1.5464,
+      "gap_mean": 0.4806,
+      "gap_std": 0.1388,
+      "energy_std": 0.0029
+    },
+    {
+      "target": "LiNi0.5Co0.2Mn0.3O2",
+      "template": "LiNi0.4Co0.3Mn0.3O2",
+      "n": 8,
+      "ef_mean": -1.7853,
+      "ef_std": 0.0098,
+      "ef_best": -1.766,
+      "gap_mean": 0.3309,
+      "gap_std": 0.0888,
+      "energy_std": 0.0048
+    },
+    {
+      "target": "LiNi0.6Co0.2Mn0.2O2",
+      "template": "LiNi0.5Co0.5O2",
+      "n": 8,
+      "ef_mean": -1.7541,
+      "ef_std": 0.0116,
+      "ef_best": -1.7484,
+      "gap_mean": 0.7975,
+      "gap_std": 0.2608,
+      "energy_std": 0.02
+    },
+    {
+      "target": "Li1.2Ni0.13Co0.13Mn0.54O2",
+      "template": "LiNi0.333Co0.333Mn0.334O2",
+      "n": 8,
+      "ef_mean": -2.1466,
+      "ef_std": 0.0112,
+      "ef_best": -2.1554,
+      "gap_mean": 1.0898,
+      "gap_std": 0.0504,
+      "energy_std": 0.0154
+    },
+    {
+      "target": "Li1.2Ni0.2Mn0.6O2",
+      "template": "LiNi0.333Co0.333Mn0.334O2",
+      "n": 8,
+      "ef_mean": -1.9849,
+      "ef_std": 0.0061,
+      "ef_best": -1.9888,
+      "gap_mean": 0.0374,
+      "gap_std": 0.0882,
+      "energy_std": 0.0034
+    },
+    {
+      "target": "Li1.2Mn0.4Ti0.4O2",
+      "template": "LiMnO2",
+      "n": 8,
+      "ef_mean": -1.9438,
+      "ef_std": 0.0604,
+      "ef_best": -1.8766,
+      "gap_mean": 0.0962,
+      "gap_std": 0.0499,
+      "energy_std": 0.0002
+    },
+    {
+      "target": "Li1.2Mn0.4Zr0.4O2",
+      "template": "LiNi0.4Co0.2Mn0.4O2",
+      "n": 8,
+      "ef_mean": -2.6237,
+      "ef_std": 0.0107,
+      "ef_best": -2.6407,
+      "gap_mean": 1.4999,
+      "gap_std": 0.0976,
+      "energy_std": 0.0081
+    },
+    {
+      "target": "Li1.3Mn0.4Nb0.3O2",
+      "template": "LiMnO2",
+      "n": 8,
+      "ef_mean": -1.9159,
+      "ef_std": 0.0523,
+      "ef_best": -1.8766,
+      "gap_mean": 0.0771,
+      "gap_std": 0.0449,
+      "energy_std": 0.0002
+    },
+    {
+      "target": "Li1.2Mn0.4Nb0.4O2",
+      "template": "LiNi0.4Co0.2Mn0.4O2",
+      "n": 8,
+      "ef_mean": -2.5467,
+      "ef_std": 0.0208,
+      "ef_best": -2.5477,
+      "gap_mean": 1.2068,
+      "gap_std": 0.1193,
+      "energy_std": 0.018
+    }
+  ],
+  "interpretation": "系综标准差就是「无序装饰」带来的预测不确定度：应在引用这些候选的稳定性/带隙时把它作为误差条，而不是把单个装饰的结果当成确定值。"
+}
