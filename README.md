@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 151 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 156 个单元测试（155 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -285,41 +285,42 @@ CPU 结构描述符（0.193 eV/胞）之上，项目内置了一个**自包含�
 
 
 
-### 6. 结构模型驱动的候选筛选（v1.11.0，需 GPU 环境）
+### 6. 结构模型驱动的候选筛选（v1.12.0，需 GPU 环境）
 
-`screening_struct.py` 把稳定性从「成分模型（matbench 钙钛矿口径）」换成**CGCNN（MP 含 Li 域，每原子形成能）**，电压优先用**双塔 CGCNN**：
+`screening_struct.py` 把稳定性换成 **CGCNN（MP 含 Li 域，每原子形成能）**、电压优先用**双塔 CGCNN**：
 
 ```powershell
 python src/fetch_mp_structures.py --mode formulas --formulas "<40 候选>" --out data/raw/mp_structures_candidates.json.gz
 python src/fetch_mp_structures.py --mode pairs --formulas "<40 候选>" --out data/raw/mp_voltage_pairs_candidates.json.gz
-# v1.11.0：给 MP 无结构的 9 条生成原型（pymatgen + CHGNet MLIP 弛豫）
-D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/generate_prototype_structures.py
-D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/generate_prototype_structures.py --all --out data/raw/mp_structures_candidates_prototype_all.json.gz
-D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/prototype_sensitivity.py       # 量化原型 vs MP 差异
+# 补 MP 无结构的候选：同构替换 + CHGNet 选相（v1.12.0，推荐）
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/template_substitution.py
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/template_substitution.py --all --out data/raw/mp_structures_candidates_polymorph_all.json.gz
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/prototype_sensitivity.py --prototypes data/raw/mp_structures_candidates_polymorph_all.json.gz --out-json results/metrics_polymorph_sensitivity.json
 D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/screening_struct.py
 ```
 
-**候选结构覆盖率 40/40，但分属两个置信层级**（跨层不可混排）：
+**候选结构覆盖率 40/40，且是单层主排名**（结构来源三级优先：MP → 同构替换 → 岩盐原型）：
 
-| 层级 | 数量 | 结构来源 | 产物 |
-|---|---|---|---|
-| **A** | 31 | MP 弛豫结构 | `cathode_ranking_struct.csv`（主排名） |
-| **B** | 9 | 岩盐型原型（CHGNet 弛豫） | `cathode_ranking_struct_prototype.csv`（**仅组内可比**） |
-| **C** | 0 | 无结构（成分回退） | `cathode_ranking_struct_fallback.csv` |
+| 层级 | 数量 | 结构来源 | 产物 | 可比性 |
+|---|---|---|---|---|
+| **A_comparable** | **40** | MP 弛豫结构（31）+ **同构替换相（9）** | `cathode_ranking_struct.csv` | 实测可比（见下表） |
+| B_prototype_rocksalt | 0 | 岩盐型原型 | `cathode_ranking_struct_prototype.csv` | 仅组内可比 |
+| C_no_structure | 0 | 无结构 | `cathode_ranking_struct_fallback.csv` | 成分回退 |
 
-**为什么 B 层不能并入主排名**：实测（`prototype_sensitivity.py`，31 条同成分对比）
+**为什么同构替换相可以并入主排名**（`prototype_sensitivity.py`，同成分对比）：
 
-| 指标 | bias | MAE | ρ |
-|---|---|---|---|
-| 每原子形成能 | **+1.249 eV/atom** | 1.259 | −0.05 |
-| 带隙 | −1.117 eV | 1.182 | 0.37 |
+| 补结构方式 | 形成能 bias | MAE | ρ | 带隙 bias | 带隙 MAE |
+|---|---|---|---|---|---|
+| 岩盐型原型 | +1.2490 eV/atom | 1.2594 | -0.053 | −1.1172 eV | 1.1818 |
+| **同构替换 + CHGNet 选相** | **+0.0903 eV/atom** | **0.1470** | **0.972** | **-0.0094 eV** | 0.2095 |
 
-该差异**不是弛豫误差**（晶胞常数 3.80→4.20 Å 扫描、以及 CHGNet 弛豫前后，偏差都停在 ≈1.1–1.25 eV/atom），
-而是**多晶型能量差**：原型是岩盐型**亚稳**相，MP 给的是**基态**相（如 LiCoO₂ 的层状相）。
+偏差缩小 **14×**、排序相关性 **0.97**，残差与 CGCNN 自身误差（0.0962 eV/atom）同量级
+→ 结构替代物几乎不引入额外误差。**做法要点**：模板取自 MP 已弛豫结构，只替换阳离子位点、
+晶格与阴离子骨架沿用模板几何，再用 **CHGNet** 弛豫并按能量/原子选最低相（即用 MLIP 做多晶型筛选）。
 
-电极对覆盖 20/40；结构 vs 成分稳定性的 Spearman ρ = **0.7462**（尺度无关的一致性指标）。
+电极对覆盖 20/40；结构 vs 成分稳定性的 Spearman ρ = **0.7462**（A 层内，尺度无关）。
 
-Top 5（A 层）：LiMn₀.₈Fe₀.₂PO₄(74.8) > Li₂MnSiO₄(73.3) > LiMnPO₄(73.0) > LiMn₀.₆Fe₀.₄PO₄(73.0) > LiV₃O₈(71.8)
+Top 5（A 层 40 条）：LiMn₀.₈Fe₀.₂PO₄(72.8) > Li₂MnSiO₄(72.3) > LiMnPO₄(72.0) > LiMn₀.₆Fe₀.₄PO₄(71.0) > LiV₃O₈(69.8)
 
 ### 4.1 MP 域 CGCNN 与推理 CLI（v1.6.0）
 
@@ -464,13 +465,14 @@ battery-cathode-ml/
 │   ├── screening.py             # 候选筛选排序（成分模型）
 │   ├── screening_struct.py      # ★ 结构模型驱动的候选筛选（CGCNN + 双塔电压，A/B/C 三层）
 │   ├── generate_prototype_structures.py  # ★ 缺失候选的岩盐型原型 + CHGNet MLIP 弛豫
-│   ├── prototype_sensitivity.py # ★ 原型 vs MP 结构预测差异（多晶型能量差）
+│   ├── prototype_sensitivity.py # ★ 原型/同构替换相 vs MP 结构预测差异
+│   ├── template_substitution.py # ★ 多晶型枚举 + 同构替换（按 MLIP 能量选相）
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 151 个单元测试
+├── tests/                       # 156 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -489,7 +491,8 @@ battery-cathode-ml/
 | ~~2~~ | ~~结构特征 → 图神经网络~~ ✅ **已完成** | matbench 域 CGCNN 0.0401 eV/胞；**MP 含 Li 域 test 0.0962 eV/atom（8k）/ 0.1921（3k）**，比同数据成分基线好 1.9×/1.4×；已配 `predict_cgcnn.py` 推理 CLI | 结构模型可用，形成能进入 0.1 eV/atom 量级 |
 | ~~3~~ | ~~不确定性校准~~ ✅ **已完成** | `conformal.py`：90% 区间 ±1.00 V / ±75.8 mAh/g，交叉校准覆盖率 90.0%/90.1%；并指出模型分歧只有真实 MAE 的 17% | 预测从「一个数」变成「一个数 + 有覆盖率保证的区间」 |
 | 4 | **多目标优化** | 用 Pareto 前沿（电压 vs 容量 vs 稳定性）替代线性加权评分 | 避免权重拍脑袋，给出取舍曲线 |
-| ~~5~~ | ~~框架级消歧~~ ✅ **已完成** | 44 维结构特征：随机 MAE 0.419→**0.408 V**，分组 0.473→**0.445 V**，结构特征占重要性 32% | 部分压缩最大误差项，但电压仍以成分为主 |
+| ~~5~~ | ~~框架级消歧~~ ✅ **已完成** | 44 维结构特征：随机 0.419→**0.408 V**，分组 0.473→**0.445 V**（结构占重要性 32%）；v1.7.0 进一步改为双塔 CGCNN 端到端 **0.3525 V** | 电压误差已压缩到 0.35 V 量级 |
+| ~~6~~ | ~~缺失候选的结构生成~~ ✅ **已完成** | 同构替换 + CHGNet 选相（MP 无结构的 9 条）：与 MP 真实结构残差 bias +0.0903 eV/atom、ρ 0.972（岩盐原型为 +1.25、ρ -0.05）→ 候选结构覆盖率 **40/40 单层主排名** | 结构模型覆盖全部候选 |
 | 6 | **在线演示** | Streamlit / Gradio 页面：输入化学式即时出三维性质 | 项目可展示、可交互 |
 
 ---
@@ -498,7 +501,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 151 个测试
+pytest tests/ -v                                             # 156 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -536,7 +539,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.11.0}
+  version = {1.12.0}
 }
 ```
 

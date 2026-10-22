@@ -167,9 +167,12 @@ class TestStructDrivenScreening:
         assert m["n_candidates"] == 40
         tiers = m["structure_tiers"]
         assert sum(tiers.values()) == 40
-        assert tiers["A_MP_relaxed"] == m["n_ranked_with_structure"]
-        assert tiers["B_prototype_CHGNet"] == m["n_prototype_only"]
+        assert tiers["A_comparable"] == m["n_ranked_with_structure"]
+        assert tiers["B_prototype_rocksalt"] == m["n_prototype_only"]
         assert tiers["C_no_structure"] == m["n_fallback_without_structure"]
+        # A 层由"MP 结构 + 同构替换相"组成，两者之和必须等于 A 层规模
+        assert (m["n_from_mp_structure"] + m["n_from_polymorph_substitution"]
+                == tiers["A_comparable"])
         assert m["weights"]["stability"] == 0.40
         # 尺度无关的一致性指标必须存在（两套口径不可比绝对值）
         assert "stability_rank_correlation_struct_vs_comp" in m
@@ -179,9 +182,9 @@ class TestStructDrivenScreening:
             pytest.skip("未生成结构筛选排序表")
         ranked = pd.read_csv(self.RANKED, encoding="utf-8-sig")
         assert len(ranked)
-        # A 层：必须都有 MP 结构，且分数降序
+        # A 层：必须都有结构（MP 或同构替换相），且分数降序
         assert ranked["cgcnn_ef_eV_atom"].notna().all()
-        assert (ranked["structure_origin"] == "MP弛豫").all()
+        assert set(ranked["structure_origin"]) <= {"MP弛豫", "同构替换(CHGNet)"}
         assert ranked["score"].is_monotonic_decreasing
 
         sets = [set(ranked["formula"])]
@@ -262,6 +265,65 @@ class TestPrototypeStructures:
         assert abs(m["ef"]["bias_eV_atom"]) > 0.5
 
 
+class TestTemplateSubstitution:
+    """同构替换（多晶型枚举的第一步）：替换阳离子、保留阴离子骨架（需 pymatgen）。"""
+
+    @staticmethod
+    def _template():
+        pytest.importorskip("pymatgen")
+        from pymatgen.core import Lattice, Structure
+
+        # 简易岩盐型 LiCoO2 模板并扩成 2x2x2（16 个阳离子位点）：
+        # 位点太少时整数占位取整会产生大偏差，放大后更能反映真实行为
+        st = Structure(Lattice.cubic(4.0),
+                       ["Li", "Co", "O", "O"],
+                       [[0, 0, 0], [0.5, 0.5, 0.5], [0.5, 0.5, 0], [0, 0, 0.5]])
+        st.make_supercell([2, 2, 2])
+        return st.as_dict()
+
+    def test_substitution_preserves_anion_sublattice(self):
+        pytest.importorskip("pymatgen")
+        import template_substitution as ts
+        from pymatgen.core import Composition, Structure
+
+        st, meta = ts.substitution_candidates("LiCoO2", self._template(),
+                                              "LiNi0.5Co0.2Mn0.3O2")
+        assert meta["template"] == "LiCoO2"
+        assert meta["substitution_deviation"] < 0.15
+        new = Structure.from_dict(st)
+        # 阴离子位点不动
+        anions = [i for i, s in enumerate(new) if s.species_string in ts.ANION_ELEMENTS]
+        assert len(anions) == 16
+        # 阳离子位点全部为目标元素（Li/Ni/Co/Mn）
+        cations = {new[i].species_string for i in range(len(new)) if i not in anions}
+        assert cations <= {"Li", "Ni", "Co", "Mn"}
+        # 还原出来的成分与目标成分的**阳离子位点比例**接近
+        # （注意：要按阳离子归一化后比，直接比原子分数会把 O 也算进分母）
+        counts = {el: sum(1 for s in new if s.species_string == el) for el in cations}
+        got_total = sum(counts.values())
+        want = Composition("LiNi0.5Co0.2Mn0.3O2")
+        want_cat = {el: want[el] for el in ("Li", "Ni", "Co", "Mn")}
+        want_total = sum(want_cat.values())
+        for el in ("Li", "Ni", "Co", "Mn"):
+            assert abs(counts[el] / got_total - want_cat[el] / want_total) < 0.05
+
+    def test_incompatible_anion_set_returns_none(self):
+        pytest.importorskip("pymatgen")
+        import template_substitution as ts
+
+        # 氧化物模板 -> 氟化物目标：阴离子骨架不同，必须拒绝
+        got = ts.substitution_candidates("LiCoO2", self._template(), "LiFePO4F")
+        assert got is None
+
+    def test_cation_anion_ratio_mismatch_returns_none(self):
+        pytest.importorskip("pymatgen")
+        import template_substitution as ts
+
+        # LiCoO2（阳离子:阴离子 = 1:1）-> Li2FeSiO4（3:4）：比例不符，必须拒绝
+        got = ts.substitution_candidates("LiCoO2", self._template(), "Li2FeSiO4")
+        assert got is None
+
+
 class TestStructGapModel:
     """结构版带隙模型（CGCNN on MP band_gap）的产物契约与口径决策（离线）。"""
 
@@ -290,3 +352,28 @@ class TestStructGapModel:
         # PBE 低估导致结构/实验口径排序负相关，这是选择评分口径的依据
         rho = m.get("gap_rank_correlation_struct_vs_comp")
         assert rho is None or rho < 0.5, f"若结构带隙与实验口径强相关，应重新评估口径决策: {rho}"
+
+
+class TestPolymorphComparability:
+    """同构替换相能否并入主排名，取决于它与 MP 真实结构的实测残差（报告附录 L）。"""
+
+    METRICS = ROOT / "results" / "metrics_polymorph_sensitivity.json"
+
+    def test_residual_is_small_enough_to_merge(self):
+        if not self.METRICS.exists():
+            pytest.skip("未跑同构替换敏感性分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["n_compared"] >= 10
+        # 并入 A 层的依据：bias 远小于岩盐原型（~1.25），且排序高度一致
+        assert abs(m["ef"]["bias_eV_atom"]) < 0.3, m["ef"]
+        assert m["ef"]["spearman"] > 0.8, m["ef"]
+        assert m["ef"]["MAE_proto_vs_mp_eV_atom"] < 0.3
+
+    def test_rocksalt_prototype_residual_is_much_larger(self):
+        """对照：岩盐原型残差必须显著更大，否则分层逻辑需要重新评估。"""
+        rs = ROOT / "results" / "metrics_prototype_sensitivity.json"
+        if not (self.METRICS.exists() and rs.exists()):
+            pytest.skip("缺少对比文件")
+        poly = json.load(open(self.METRICS, encoding="utf-8"))["ef"]
+        rock = json.load(open(rs, encoding="utf-8"))["ef"]
+        assert abs(rock["bias_eV_atom"]) > 5 * abs(poly["bias_eV_atom"])

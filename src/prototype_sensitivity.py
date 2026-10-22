@@ -98,6 +98,8 @@ def main(argv=None) -> int:
     ap.add_argument("--mp", default=str(MP_STRUCTS))
     ap.add_argument("--prototypes", default=str(PROTO_STRUCTS))
     ap.add_argument("--out-csv", default=str(OUT_CSV))
+    ap.add_argument("--out-json", default=str(OUT_JSON),
+                    help="指标输出路径（可分别存岩盐原型 / 同构替换两份对比）")
     args = ap.parse_args(argv)
 
     try:
@@ -163,8 +165,9 @@ def main(argv=None) -> int:
             "screening_struct.py 因此分三层：A=MP 结构（主排名）、"
             "B=原型结构（单列，仅组内可比）、C=无结构（成分回退）。"),
     }
-    OUT_JSON.parent.mkdir(exist_ok=True)
-    with open(OUT_JSON, "w", encoding="utf-8") as f:
+    out_json = Path(args.out_json).resolve()
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_json, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
     df.to_csv(args.out_csv, index=False, encoding="utf-8-sig")
 
@@ -180,7 +183,7 @@ def main(argv=None) -> int:
           f"MAE={metrics['gap']['MAE_proto_vs_mp_eV']:.4f} | ρ={metrics['gap']['spearman']:.3f}")
     print("  解释：该差异主要是**多晶型能量差**（亚稳岩盐 vs 基态多晶型），不是弛豫误差；")
     print("        因此原型候选只能做组内相对比较 → 筛选中单列为 B 层。")
-    print(f"[SAVE] results/{OUT_JSON.name} / {Path(args.out_csv).name}")
+    print(f"[SAVE] {out_json.name} / {Path(args.out_csv).name}")
     return 0
 
 

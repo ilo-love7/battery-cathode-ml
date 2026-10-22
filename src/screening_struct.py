@@ -60,6 +60,7 @@ CANDIDATES = ROOT / "data" / "cathode_candidates.csv"
 STRUCTURES = ROOT / "data" / "raw" / "mp_structures_candidates.json.gz"
 PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_candidates.json.gz"
 PROTOTYPES = ROOT / "data" / "raw" / "mp_structures_candidates_prototype.json.gz"
+POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz"
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
 CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
 GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
@@ -241,7 +242,9 @@ def main(argv=None) -> int:
     ap.add_argument("--structures", default=str(STRUCTURES))
     ap.add_argument("--pairs", default=str(PAIRS))
     ap.add_argument("--prototypes", default=str(PROTOTYPES),
-                    help="原型结构文件（补 MP 无结构的候选；见 generate_prototype_structures.py）")
+                    help="岩盐型原型文件（最后手段；见 generate_prototype_structures.py）")
+    ap.add_argument("--polymorphs", default=str(POLYMORPHS),
+                    help="同构替换相文件（优先级高于岩盐原型；见 template_substitution.py）")
     ap.add_argument("--tag", default="struct")
     ap.add_argument("--no-cgcnn", action="store_true", help="只用成分模型（对照）")
     ap.add_argument("--prefer-struct-gap", action="store_true",
@@ -270,6 +273,22 @@ def main(argv=None) -> int:
                         struct_map[f_] = r["structure"]
                         origin[f_] = "MP弛豫"
                         struct_ids[f_] = r.get("material_id", "")
+        # 第二优先级：同构替换 + MLIP 选相（实测与 MP 结构 bias +0.09 eV/atom、ρ 0.97，
+        # 因此可与 MP 结构同层比较；见报告附录 L）
+        if Path(args.polymorphs).exists():
+            n_poly = 0
+            with gzip.open(args.polymorphs, "rt", encoding="utf-8") as f:
+                for r in json.load(f):
+                    f_ = r.get("query_formula")
+                    if not f_ or not r.get("structure") or f_ in struct_map:
+                        continue
+                    struct_map[f_] = r["structure"]
+                    origin[f_] = "同构替换(CHGNet)"
+                    struct_ids[f_] = r.get("material_id", f"poly:{f_}")
+                    n_poly += 1
+            print(f"同构替换相补充: {n_poly} 条 → 结构覆盖 {len(struct_map)}/{len(formulas)}")
+
+        # 第三优先级：岩盐型原型（仅组内可比）
         if Path(args.prototypes).exists():
             n_proto = 0
             with gzip.open(args.prototypes, "rt", encoding="utf-8") as f:
@@ -333,8 +352,10 @@ def main(argv=None) -> int:
     df["structure_from_prototype"] = df["structure_origin"].str.startswith("原型")
     # 置信层级（跨层不可混排，见下方评分与产物）：
     #   A_MP=MP 弛豫结构 / B_prototype=原型结构 / C_none=无结构
+    # A_comparable：MP 弛豫结构 或 同构替换相（两者实测可比，见 metrics 里的残差）
+    # B_prototype ：只有岩盐型原型（仅组内可比）
     df["structure_tier"] = np.where(
-        df["structure_origin"] == "MP弛豫", "A_MP",
+        df["structure_origin"].isin(["MP弛豫", "同构替换(CHGNet)"]), "A_comparable",
         np.where(df["structure_from_prototype"], "B_prototype", "C_none"))
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
     df["stability_eV_atom"] = df["cgcnn_ef_eV_atom"].where(df["has_structure"],
@@ -347,7 +368,7 @@ def main(argv=None) -> int:
     df["rank_struct"] = np.nan
     df["rank_comp"] = np.nan
     df["rank_shift"] = np.nan
-    sub = df[df["structure_tier"] == "A_MP"].copy()
+    sub = df[df["structure_tier"] == "A_comparable"].copy()
     if len(sub) > 3:
         r_struct = sub["cgcnn_ef_eV_atom"].rank(ascending=True)      # 越负越稳定 -> 名次越小
         r_comp = sub["comp_ef_eV_atom"].rank(ascending=True)
@@ -390,11 +411,13 @@ def main(argv=None) -> int:
            "flag"] += "结构判金属/成分判半导体(PBE低估);"
     df.loc[df["has_structure"] & ~df["has_struct_voltage"], "flag"] += "电压成分回退;"
     # 原型结构：未由 DFT 弛豫，稳定性/带隙带额外不确定度（见 prototype_sensitivity）
-    df.loc[df["structure_from_prototype"], "flag"] += "结构为原型(CHGNet弛豫,有额外不确定度);"
+    df.loc[df["structure_from_prototype"], "flag"] += "结构为岩盐原型(仅组内可比);"
+    df.loc[df["structure_origin"] == "同构替换(CHGNet)",
+           "flag"] += "结构为同构替换相(已验证与MP可比);"
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
 
     # ---- 分层产物（tier 已在前面算好，此处只做分组与排序） ----
-    covered = (df[df["structure_tier"] == "A_MP"]
+    covered = (df[df["structure_tier"] == "A_comparable"]
                .sort_values("score", ascending=False).reset_index(drop=True))
     covered.insert(0, "rank", np.arange(1, len(covered) + 1))
     proto = (df[df["structure_tier"] == "B_prototype"]
@@ -409,11 +432,15 @@ def main(argv=None) -> int:
                                                     method="spearman"))
 
     # 原型组与 MP 组的系统偏移（来自 prototype_sensitivity.py 的实测）
-    proto_unc = {}
+    proto_unc, poly_unc = {}, {}
     unc_path = OUT / "metrics_prototype_sensitivity.json"
     if unc_path.exists():
         with open(unc_path, encoding="utf-8") as fh:
             proto_unc = json.load(fh)
+    poly_path = OUT / "metrics_polymorph_sensitivity.json"
+    if poly_path.exists():
+        with open(poly_path, encoding="utf-8") as fh:
+            poly_unc = json.load(fh)
     df = covered
 
     OUT.mkdir(exist_ok=True)
@@ -471,9 +498,19 @@ def main(argv=None) -> int:
         "n_ranked_with_structure": int(len(df)),
         "n_prototype_only": int(len(proto)),
         "n_fallback_without_structure": int(len(fallback)),
-        "structure_tiers": {"A_MP_relaxed": int(len(df)),
-                            "B_prototype_CHGNet": int(len(proto)),
+        "structure_tiers": {"A_comparable": int(len(df)),
+                            "B_prototype_rocksalt": int(len(proto)),
                             "C_no_structure": int(len(fallback))},
+        "n_from_mp_structure": int((df["structure_origin"] == "MP弛豫").sum()),
+        "n_from_polymorph_substitution": int((df["structure_origin"] == "同构替换(CHGNet)").sum()),
+        "polymorph_residual_uncertainty": {
+            "n_compared": poly_unc.get("n_compared"),
+            "ef_bias_eV_atom": poly_unc.get("ef", {}).get("bias_eV_atom"),
+            "ef_MAE_eV_atom": poly_unc.get("ef", {}).get("MAE_proto_vs_mp_eV_atom"),
+            "ef_spearman": poly_unc.get("ef", {}).get("spearman"),
+            "gap_bias_eV": poly_unc.get("gap", {}).get("bias_eV"),
+            "note": "同构替换相 vs MP 真实结构的残差；足够小 -> 可与 MP 结构同层比较",
+        },
         "prototype_extra_uncertainty": {
             "ef_bias_eV_atom": proto_unc.get("ef", {}).get("bias_eV_atom"),
             "ef_MAE_eV_atom": proto_unc.get("ef", {}).get("MAE_proto_vs_mp_eV_atom"),
@@ -496,8 +533,10 @@ def main(argv=None) -> int:
         "note": ("**主排名（A 层）只收录有 MP 弛豫结构的候选**：稳定性来自 CGCNN（MP 含 Li 域，每原子形成能）。"
                  "成分模型的 e_form 是 matbench 5 原子胞口径（正负号与 MP 都不同），"
                  "两者不可混排，故无结构候选单列于 *_fallback.csv（C 层）。"
-                 "另有 B 层（原型结构）单列于 *_prototype.csv：原型是**岩盐型亚稳多晶型**，"
-                 "与 MP 真实多晶型存在系统能量差，**仅组内可比**，不可与 A 层混排。"
+                 "A 层除 MP 结构外，还包含**同构替换 + CHGNet 选相**补出的结构："
+                 "实测其与 MP 真实结构的 CGCNN 预测 bias +0.09 eV/atom、ρ 0.97，"
+                 "与模型自身误差同量级，故可同层比较。另有 B 层（岩盐型原型）单列，"
+                 "因其与真实多晶型差 +1.25 eV/atom，**仅组内可比**。"
                  "电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；"
                  "导电性默认用实验口径的成分带隙（CGCNN 结构带隙在 Li 体系与实验口径排序负相关 ρ≈-0.57，"
                  "PBE 系统性低估，仅作交叉检查列），可用 --prefer-struct-gap 切换为结构口径。"),
