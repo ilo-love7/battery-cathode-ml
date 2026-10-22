@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 177 个单元测试（176 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 180 个单元测试（179 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -497,13 +497,14 @@ battery-cathode-ml/
 │   ├── template_substitution.py # ★ 多晶型枚举 + 同构替换（按 MLIP 能量选相）
 │   ├── drx_ensemble.py          # ★ 无序系综（随机装饰 + 误差条）
 │   ├── local_conformal.py       # ★ 局部自适应区间 + 条件覆盖率（按体系族）
-│   ├── calibrate_weights.py     # ★ 用文献实测比能量校准评分权重
+│   ├── calibrate_weights.py     # ★ 多元外部标签校准评分权重（含自助法区间）
+│   ├── annotate_reference.py    # ★ 参考表溯源分级与逐行不确定度
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 177 个单元测试
+├── tests/                       # 180 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -532,7 +533,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 177 个测试
+pytest tests/ -v                                             # 180 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -570,7 +571,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.17.0}
+  version = {1.18.0}
 }
 ```
 

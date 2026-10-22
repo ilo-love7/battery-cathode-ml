@@ -3,18 +3,18 @@
   "n_aligned": 39,
   "target": "specific_energy_Wh_kg = V_practical × Q_practical",
   "single_dimension_rho": {
-    "pct_stability": -0.2184,
+    "pct_stability": -0.2181,
     "pct_conduction": -0.4128,
     "pct_capacity": 0.6451,
     "pct_voltage": -0.0172
   },
   "single_dimension_rho_matrix": {
     "pct_stability": {
-      "specific_energy_Wh_kg": -0.2184,
-      "cycle_life_cycles": -0.0599,
-      "rate_retention_pct": -0.2695,
-      "thermal_onset_C": 0.7043,
-      "cost_score": 0.5865
+      "specific_energy_Wh_kg": -0.2181,
+      "cycle_life_cycles": -0.0601,
+      "rate_retention_pct": -0.2691,
+      "thermal_onset_C": 0.7036,
+      "cost_score": 0.5868
     },
     "pct_conduction": {
       "specific_energy_Wh_kg": -0.4128,
@@ -47,14 +47,14 @@
   ],
   "multi_objective": {
     "definition": "各外部目标 z 标准化后等权平均，再与评分做 Spearman ρ",
-    "best_rho_multi": 0.391,
+    "best_rho_multi": 0.3913,
     "best_weights_multi": {
       "stability": 0.3,
       "conduction": 0.1,
       "capacity": 0.5,
       "voltage": 0.1
     },
-    "best_maximin_rho_min": -0.0407,
+    "best_maximin_rho_min": -0.0411,
     "best_weights_maximin": {
       "stability": 0.2,
       "conduction": 0.15,
@@ -64,31 +64,37 @@
   },
   "weight_uncertainty_bootstrap": {
     "n_resamples": 60,
-    "noise": 0.1,
+    "noise": "per_row_uncertainty_pct",
+    "mean_uncertainty_pct": 15.74,
+    "provenance_counts": {
+      "同行综述典型值": 14,
+      "厂商数据手册典型值": 13,
+      "本文估算（文献区间中值）": 12
+    },
     "per_weight": {
       "stability": {
-        "median": 0.3,
-        "p05": 0.25,
-        "p95": 0.652,
-        "share_equal_to_best": 0.4
+        "median": 0.425,
+        "p05": 0.2,
+        "p95": 0.75,
+        "share_equal_to_best": 0.267
       },
       "conduction": {
         "median": 0.1,
         "p05": 0.1,
-        "p95": 0.25,
-        "share_equal_to_best": 0.65
+        "p95": 0.202,
+        "share_equal_to_best": 0.667
       },
       "capacity": {
-        "median": 0.45,
-        "p05": 0.095,
+        "median": 0.35,
+        "p05": 0.05,
         "p95": 0.5,
-        "share_equal_to_best": 0.367
+        "share_equal_to_best": 0.333
       },
       "voltage": {
         "median": 0.1,
         "p05": 0.1,
-        "p95": 0.15,
-        "share_equal_to_best": 0.883
+        "p95": 0.1,
+        "share_equal_to_best": 0.967
       }
     },
     "note": "自助法（重采样 + ±10% 观测噪声）给出的权重区间；区间宽说明参考表不足以唯一确定权重，应读作合理范围。"
@@ -99,95 +105,86 @@
     "capacity": 0.25,
     "voltage": 0.2
   },
-  "prior_rho": -0.143,
+  "prior_rho": -0.1425,
   "best_weights": {
     "stability": 0.3,
     "conduction": 0.1,
     "capacity": 0.5,
     "voltage": 0.1
   },
-  "best_rho": 0.4532,
-  "improvement_over_prior": 0.5962,
+  "best_rho": 0.4526,
+  "improvement_over_prior": 0.5951,
   "constraints": {
     "min_stability": 0.2,
     "min_conduction": 0.1,
     "min_voltage": 0.1,
     "max_capacity": 0.5
   },
-  "energy_density_variant_rho": -0.0875,
-  "four_dimension_rho_recomputed": -0.143,
+  "energy_density_variant_rho": -0.0805,
+  "four_dimension_rho_recomputed": -0.1425,
   "top10_weight_sets": [
     {
       "stability": 0.3,
       "conduction": 0.1,
       "capacity": 0.5,
       "voltage": 0.1,
-      "spearman_rho": 0.4532,
-      "rho_multi": 0.391,
-      "rho_min_across_targets": -0.1346
+      "spearman_rho": 0.4526,
+      "rho_multi": 0.3913,
+      "rho_min_across_targets": -0.1345
     },
     {
       "stability": 0.35,
       "conduction": 0.1,
       "capacity": 0.45,
       "voltage": 0.1,
-      "spearman_rho": 0.3203,
-      "rho_multi": 0.3767,
-      "rho_min_across_targets": -0.2339
+      "spearman_rho": 0.3204,
+      "rho_multi": 0.3763,
+      "rho_min_across_targets": -0.234
     },
     {
       "stability": 0.45,
       "conduction": 0.1,
       "capacity": 0.35,
       "voltage": 0.1,
-      "spearman_rho": 0.1129,
-      "rho_multi": 0.3726,
-      "rho_min_across_targets": -0.3003
-    },
-    {
-      "stability": 0.25,
-      "conduction": 0.15,
-      "capacity": 0.5,
-      "voltage": 0.1,
-      "spearman_rho": 0.4792,
-      "rho_multi": 0.3717,
-      "rho_min_across_targets": -0.1127
+      "spearman_rho": 0.1079,
+      "rho_multi": 0.3723,
+      "rho_min_across_targets": -0.3034
     },
     {
       "stability": 0.55,
       "conduction": 0.1,
       "capacity": 0.25,
       "voltage": 0.1,
-      "spearman_rho": -0.0835,
-      "rho_multi": 0.3702,
-      "rho_min_across_targets": -0.2825
-    },
-    {
-      "stability": 0.5,
-      "conduction": 0.1,
-      "capacity": 0.3,
-      "voltage": 0.1,
-      "spearman_rho": -0.0022,
-      "rho_multi": 0.369,
-      "rho_min_across_targets": -0.3012
-    },
-    {
-      "stability": 0.3,
-      "conduction": 0.1,
-      "capacity": 0.45,
-      "voltage": 0.15,
-      "spearman_rho": 0.3893,
-      "rho_multi": 0.3676,
-      "rho_min_across_targets": -0.1762
+      "spearman_rho": -0.0829,
+      "rho_multi": 0.3704,
+      "rho_min_across_targets": -0.2817
     },
     {
       "stability": 0.4,
       "conduction": 0.1,
       "capacity": 0.4,
       "voltage": 0.1,
-      "spearman_rho": 0.2014,
-      "rho_multi": 0.3671,
-      "rho_min_across_targets": -0.3073
+      "spearman_rho": 0.2037,
+      "rho_multi": 0.3689,
+      "rho_min_across_targets": -0.3044
+    },
+    {
+      "stability": 0.5,
+      "conduction": 0.1,
+      "capacity": 0.3,
+      "voltage": 0.1,
+      "spearman_rho": -0.0031,
+      "rho_multi": 0.3683,
+      "rho_min_across_targets": -0.3008
+    },
+    {
+      "stability": 0.25,
+      "conduction": 0.15,
+      "capacity": 0.5,
+      "voltage": 0.1,
+      "spearman_rho": 0.4749,
+      "rho_multi": 0.3668,
+      "rho_min_across_targets": -0.1194
     },
     {
       "stability": 0.45,
@@ -195,8 +192,8 @@
       "capacity": 0.3,
       "voltage": 0.1,
       "spearman_rho": -0.0385,
-      "rho_multi": 0.366,
-      "rho_min_across_targets": -0.2835
+      "rho_multi": 0.3665,
+      "rho_min_across_targets": -0.2826
     },
     {
       "stability": 0.3,
@@ -206,6 +203,15 @@
       "spearman_rho": 0.3205,
       "rho_multi": 0.3656,
       "rho_min_across_targets": -0.2329
+    },
+    {
+      "stability": 0.3,
+      "conduction": 0.1,
+      "capacity": 0.45,
+      "voltage": 0.15,
+      "spearman_rho": 0.393,
+      "rho_multi": 0.3649,
+      "rho_min_across_targets": -0.1737
     }
   ],
   "caveats": [

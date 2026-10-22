@@ -87,7 +87,9 @@ def main(argv=None) -> int:
             return 2
     ref["cost_score"] = -ref["cost_index"]        # 成本越低越好 -> 取负
     ext_cols.append("cost_score")
-    merged = rank.merge(ref[["formula"] + ext_cols], on="formula", how="inner")
+    # 溯源列必须一并带过来，否则逐行不确定度会静默退回 ±10%
+    prov_cols = [c for c in ("uncertainty_pct", "source_type") if c in ref.columns]
+    merged = rank.merge(ref[["formula"] + ext_cols + prov_cols], on="formula", how="inner")
     print(f"参考表 {len(ref)} 条 | 排序表 {len(rank)} 条 | 可对齐 {len(merged)} 条 | "
           f"外部目标 {len(ext_cols)} 个")
     if len(merged) < 12:
@@ -176,12 +178,18 @@ def main(argv=None) -> int:
 
     # ---- 自助法：权重不确定度（重采样 + ±10% 观测噪声） ----
     rng = np.random.default_rng(42)
+    unc = None
+    if "uncertainty_pct" in merged.columns:
+        unc = merged["uncertainty_pct"].to_numpy(dtype=float)
+        print(f"逐行不确定度: 均值 {unc.mean():.1f}% （来自溯源分级）")
     boot_best = []
     n = len(merged)
     for _ in range(args.bootstrap):
         idx = rng.integers(0, n, size=n)
         Xb = X[idx]
-        yb = multi[idx] * (1 + rng.normal(0, 0.10, size=n))     # 观测噪声 ±10%
+        # 观测噪声用**逐行不确定度**（来自 annotate_reference.py 的溯源分级）
+        sig = unc[idx] / 100.0 if unc is not None else 0.10
+        yb = multi[idx] * (1 + rng.normal(0, 1.0, size=n) * sig)
         best_w, best_r = None, -2.0
         for a, b, c in itertools.product(grid, grid, grid):
             d = round(1.0 - a - b - c, 4)
@@ -225,7 +233,12 @@ def main(argv=None) -> int:
         },
         "weight_uncertainty_bootstrap": {
             "n_resamples": int(args.bootstrap),
-            "noise": 0.10,
+            "noise": ("per_row_uncertainty_pct" if "uncertainty_pct" in merged.columns
+                      else 0.10),
+            "mean_uncertainty_pct": (None if "uncertainty_pct" not in merged.columns
+                                     else round(float(merged["uncertainty_pct"].mean()), 2)),
+            "provenance_counts": (None if "source_type" not in merged.columns
+                                  else merged["source_type"].value_counts().to_dict()),
             "per_weight": weight_uncertainty,
             "note": ("自助法（重采样 + ±10% 观测噪声）给出的权重区间；"
                      "区间宽说明参考表不足以唯一确定权重，应读作合理范围。"),

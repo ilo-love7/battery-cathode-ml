@@ -587,6 +587,31 @@ def main(argv=None) -> int:
             poly_unc = json.load(fh)
     df = covered
 
+    # ---- ② Pareto 前沿（四目标，全部"越大越好"） ----
+    # 校准已证明"没有任何线性权重能兼顾所有目标"，因此除了单一分数，还要给非支配集合。
+    objs = np.column_stack([
+        -df["stability_conservative_eV_atom"].to_numpy(dtype=float),   # 越稳定越好
+        -df["gap_conservative_eV"].to_numpy(dtype=float),              # 带隙越小越好
+        df["Q_theoretical_mAh_g"].to_numpy(dtype=float),               # 容量越高越好
+        df["voltage_conservative_V"].to_numpy(dtype=float),            # 电压越高越好
+    ])
+    n = len(df)
+    ranks = np.full(n, np.nan)
+    remaining = list(range(n))
+    for rk in range(1, 4):
+        front = [i for i in remaining
+                 if not any(all(objs[j] >= objs[i]) and (objs[j] > objs[i]).any()
+                            for j in remaining if j != i)]
+        if not front:
+            break
+        for i in front:
+            ranks[i] = rk
+        remaining = [i for i in remaining if i not in front]
+    df["pareto_rank"] = ranks
+    df["is_pareto"] = df["pareto_rank"] == 1
+    n_front = int(df["is_pareto"].sum())
+    print(f"\nPareto 前沿（四目标：稳定性/导电性/容量/电压）：{n_front}/40 条非支配")
+
     OUT.mkdir(exist_ok=True)
     keep = ["rank", "name", "formula", "family", "structure_origin", "cgcnn_ef_eV_atom",
             "ef_ens_std_eV_atom", "gap_ens_std_eV", "n_decorations",
@@ -597,7 +622,8 @@ def main(argv=None) -> int:
             "Q_theoretical_mAh_g", "voltage_conservative_V", "voltage_pi90_halfwidth_V",
             "pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
             "energy_density_Wh_kg", "pct_energy", "score", "score_energy",
-            "score_3dim", "risk_level", "voltage_risk", "flag", "struct_material_id"]
+            "score_3dim", "pareto_rank", "is_pareto", "risk_level", "voltage_risk",
+            "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
     fb_csv = OUT / f"cathode_ranking_struct_fallback.csv"
@@ -642,6 +668,28 @@ def main(argv=None) -> int:
     fig.savefig(OUT / f"cathode_ranking_{args.tag}.png", dpi=150)
     plt.close(fig)
     print(f"排名图 -> results/cathode_ranking_{args.tag}.png")
+
+    # Pareto 前沿投影图：容量 vs 电压（保守值）
+    fig, ax = plt.subplots(figsize=(7.4, 5.6))
+    fr = df[df["is_pareto"]]
+    other = df[~df["is_pareto"]]
+    ax.scatter(other["Q_theoretical_mAh_g"], other["voltage_conservative_V"],
+               s=26, alpha=0.55, edgecolors="none", color="#bbbbbb", label="被支配")
+    ax.scatter(fr["Q_theoretical_mAh_g"], fr["voltage_conservative_V"],
+               s=52, edgecolors="k", linewidths=0.6, color="#1b7837", label="Pareto 前沿")
+    for _, row in fr.iterrows():
+        ax.annotate(row["formula"], (row["Q_theoretical_mAh_g"],
+                                     row["voltage_conservative_V"]),
+                    fontsize=7, xytext=(3, 3), textcoords="offset points")
+    ax.set_xlabel("理论比容量 (mAh/g)")
+    ax.set_ylabel("保守工作电压 (V) = 预测 − 局部半宽")
+    ax.set_title(f"Pareto 前沿（容量 × 电压投影）\n"
+                 f"四目标非支配解 {n_front}/40；校准显示无单一权重可兼顾所有目标", fontsize=9)
+    ax.legend(loc="lower left", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(OUT / f"pareto_{args.tag}.png", dpi=150)
+    plt.close(fig)
+    print(f"Pareto 图 -> results/pareto_{args.tag}.png")
 
     metrics = {
         "n_candidates": int(len(cand)),
@@ -702,6 +750,16 @@ def main(argv=None) -> int:
                      "改为显式风险项：>4.5V 需高压电解液、>5.0V 超常规窗口、<2.5V 能量密度受限。"),
         },
         "risk_level_counts": df["risk_level"].value_counts().to_dict(),
+        "pareto": {
+            "objectives": ["稳定性(保守)", "导电性(带隙保守,越小越好)",
+                           "理论比容量", "电压(保守下界)"],
+            "n_front": n_front,
+            "front_members": df[df["is_pareto"]][["name", "formula", "score",
+                                                  "risk_level"]].to_dict("records"),
+            "rank_counts": df["pareto_rank"].value_counts().to_dict(),
+            "note": ("校准证明没有任何线性权重能同时兼顾所有目标（maximin 解最差 ρ 仍为负），"
+                     "因此除单一分数外给出非支配集合；排名 1 = 前沿，2/3 = 依次剥离后的层。"),
+        },
         "energy_density": {
             "definition": "voltage_conservative_V × Q_theoretical_mAh_g（Wh/kg）",
             "median_Wh_kg": (None if df["energy_density_Wh_kg"].dropna().empty else

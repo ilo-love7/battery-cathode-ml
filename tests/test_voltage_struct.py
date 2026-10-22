@@ -675,3 +675,55 @@ class TestVoltageRiskItems:
         risky = d[d["voltage_V"] > 5.0]
         if len(risky):
             assert (risky["voltage_risk"] != "").all()
+
+
+class TestProvenanceAndPareto:
+    """参考表溯源 + Pareto 前沿（v1.18.0）。"""
+
+    REF = ROOT / "data" / "reference_cathodes.csv"
+    CAL = ROOT / "results" / "metrics_weights_calibration.json"
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+
+    def test_reference_has_provenance_and_per_row_uncertainty(self):
+        ref = pd.read_csv(self.REF, encoding="utf-8-sig")
+        for col in ("source_type", "uncertainty_pct", "source_note"):
+            assert col in ref.columns, col
+            assert ref[col].notna().all(), col
+        assert ref["uncertainty_pct"].between(5, 30).all()
+        assert ref["source_type"].nunique() >= 2
+        # 商用材料的标注不确定度应不高于探索类
+        grouped = ref.groupby("source_type")["uncertainty_pct"].mean()
+        assert grouped.max() > grouped.min()
+
+    def test_bootstrap_uses_per_row_uncertainty(self):
+        if not self.CAL.exists():
+            pytest.skip("未运行权重校准")
+        m = json.load(open(self.CAL, encoding="utf-8"))
+        bu = m["weight_uncertainty_bootstrap"]
+        assert bu.get("mean_uncertainty_pct") is not None
+        assert bu.get("provenance_counts")
+        assert 5 <= bu["mean_uncertainty_pct"] <= 30
+
+    def test_pareto_front_is_actually_non_dominated(self):
+        if not self.RANKED.exists():
+            pytest.skip("未生成排序表")
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        for col in ("pareto_rank", "is_pareto"):
+            assert col in d.columns
+        front = d[d["is_pareto"]]
+        assert len(front) >= 2
+        objs = np.column_stack([
+            -front["stability_conservative_eV_atom"], -front["gap_conservative_eV"],
+            front["Q_theoretical_mAh_g"], front["voltage_conservative_V"]])
+        # 前沿内部任意两点不得互相支配
+        for i in range(len(objs)):
+            for j in range(len(objs)):
+                if i == j:
+                    continue
+                dominated = (np.all(objs[j] >= objs[i]) and np.any(objs[j] > objs[i]))
+                assert not dominated, f"前沿内第 {i} 条被第 {j} 条支配"
+        # 层级计数必须覆盖全部候选
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert sum(m["pareto"]["rank_counts"].values()) == len(d)
+        assert m["pareto"]["n_front"] == len(front)
