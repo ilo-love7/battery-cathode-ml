@@ -55,6 +55,19 @@ DEFAULT_CONSTRAINTS = {
     "min_capacity": 120.0,        # 理论比容量下限
 }
 
+# 法规/供应链情景（阈值来自公开法规文本，**注意语义**）：
+#   欧盟《电池法规》(EU) 2023/1542 第 8 条对**新电池中回收料占比**设了强制目标
+#   （2031 起 Co 16% / Li 6% / Ni 6%；2036 起 Co 26% / Li 12% / Ni 15%）。
+#   该法规约束的是"回收料比例"，**不是阴极 Co 含量上限**；
+#   本项目把它作为**供应链压力情景**（Co 越高的配方越难满足回收料目标），
+#   并在文档中明确这一语义差距，避免误读为"合规判定"。
+REGULATION_SCENARIOS = {
+    "none": {},
+    "eu2031": {"max_cobalt_frac": 0.16, "note": "EU 2023/1542 回收料目标 16% 作为 Co 上限情景"},
+    "eu2036": {"max_cobalt_frac": 0.26, "note": "EU 2023/1542 回收料目标 26% 作为 Co 上限情景"},
+    "strict": {"max_cobalt_frac": 0.02, "note": "无钴/低钴情景（供应链冲击）"},
+}
+
 RANKING = ROOT / "results" / "cathode_ranking_struct.csv"
 OUT_CSV = ROOT / "results" / "pareto_profiles.csv"
 OUT_JSON = ROOT / "results" / "metrics_pareto_profiles.json"
@@ -96,12 +109,15 @@ def main(argv=None) -> int:
     ap.add_argument("--constraints", choices=["default", "none"], default="default",
                     help="硬约束档：default=供应链/毒性/电解液/容量底线；none=只用 Pareto")
     ap.add_argument("--max-cobalt", type=float, default=None, help="Co 原子分数上限（覆盖默认）")
+    ap.add_argument("--scenario", choices=sorted(REGULATION_SCENARIOS), default="none",
+                    help="法规/供应链情景：覆盖 Co 上限（见 REGULATION_SCENARIOS 的语义说明）")
     ap.add_argument("--max-option", type=int, default=None, help="未使用占位（兼容旧调用）")
     args = ap.parse_args(argv)
 
     # 单偏好/自定义权重属于"部分运行"：不得覆盖全量 5 偏好的产物（v1.4.2 教训）
-    partial = bool(args.profile or args.weights)
-    tag = args.profile or "custom"
+    partial = bool(args.profile or args.weights or args.scenario != "none"
+                   or args.constraints != "default" or args.max_cobalt is not None)
+    tag = args.profile or args.scenario if args.scenario != "none" else (args.profile or "custom")
     out_csv, out_json, out_png = OUT_CSV, OUT_JSON, OUT_PNG
     if partial:
         out_csv = OUT_CSV.with_name(f"{OUT_CSV.stem}_{tag}{OUT_CSV.suffix}")
@@ -120,6 +136,10 @@ def main(argv=None) -> int:
 
     # ---- 硬约束过滤（在评分/前沿之前排除不可行解）----
     con = dict(DEFAULT_CONSTRAINTS)
+    scenario = REGULATION_SCENARIOS.get(args.scenario) or {}
+    if scenario.get("max_cobalt_frac") is not None:
+        con["max_cobalt_frac"] = scenario["max_cobalt_frac"]
+        print(f"[情景] {args.scenario}: {scenario['note']} -> Co 上限 {con['max_cobalt_frac']:.2f}")
     if args.max_cobalt is not None:
         con["max_cobalt_frac"] = args.max_cobalt
     n_before = len(df)
@@ -198,6 +218,8 @@ def main(argv=None) -> int:
     }
     payload["constraints"] = {
         "mode": args.constraints,
+        "scenario": args.scenario,
+        "scenario_note": scenario.get("note"),
         "thresholds": con if args.constraints == "default" else None,
         "n_before": int(n_before),
         "n_after": int(len(df)),

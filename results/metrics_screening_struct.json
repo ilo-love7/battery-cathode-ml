@@ -36,7 +36,7 @@
   "struct_voltage_coverage_among_ranked": 20,
   "struct_gap_coverage_among_ranked": 40,
   "gap_metal_disagreement_count": 5,
-  "gap_rank_correlation_struct_vs_comp": -0.5311,
+  "gap_rank_correlation_struct_vs_comp": -0.5302,
   "weights": {
     "stability": 0.3,
     "conduction": 0.1,
@@ -177,7 +177,13 @@
       {
         "name": "NMC111",
         "formula": "LiNi0.333Co0.333Mn0.334O2",
-        "score": 54.5,
+        "score": 53.75,
+        "risk_level": "高"
+      },
+      {
+        "name": "NMC433",
+        "formula": "LiNi0.4Co0.3Mn0.3O2",
+        "score": 52.75,
         "risk_level": "高"
       },
       {
@@ -202,12 +208,6 @@
         "name": "NCA",
         "formula": "LiNi0.8Co0.15Al0.05O2",
         "score": 52.25,
-        "risk_level": "高"
-      },
-      {
-        "name": "NMC433",
-        "formula": "LiNi0.4Co0.3Mn0.3O2",
-        "score": 52.0,
         "risk_level": "高"
       },
       {
@@ -317,6 +317,23 @@
     "conduction": 0.3,
     "capacity": 0.3
   },
+  "voltage_pair_coverage": {
+    "n_candidates_with_mp_pairs": 20,
+    "n_constructed": 0,
+    "n_total_pairs": 20,
+    "coverage_after": 50.0,
+    "n_failed": 5,
+    "validation": {
+      "n": 15,
+      "MAE_constructed_vs_mp_V": 0.3469,
+      "max_abs_diff_V": 0.8603,
+      "note": "用同一流程对**已有 MP 电极对**的候选重新构造两相，比较双塔模型的预测差异；该差异即「构造法引入的额外不确定度」，应写进文档。"
+    },
+    "note": "用「移除 Li + CHGNet 弛豫」构造脱锂相；构造法在已有 MP 电极对的候选上做了对照，残差见 validation —— 覆盖率的提升以该残差为代价。",
+    "n_pairs_total": 20,
+    "used_in_scoring": false,
+    "constructed_allowed_for_coverage": false
+  },
   "voltage_dimension": {
     "source": "局部自适应 conformal（已校准）",
     "n_candidates_with_local_width": 40,
@@ -415,7 +432,7 @@
       "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
     }
   ],
-  "stability_rank_correlation_struct_vs_comp": 0.4468,
+  "stability_rank_correlation_struct_vs_comp": 0.447,
   "gap_scoring_source": "成分模型(实验口径)",
   "note": "**主排名（A 层）只收录有 MP 弛豫结构的候选**：稳定性来自 CGCNN（MP 含 Li 域，每原子形成能）。成分模型的 e_form 是 matbench 5 原子胞口径（正负号与 MP 都不同），两者不可混排，故无结构候选单列于 *_fallback.csv（C 层）。A 层除 MP 结构外，还包含**同构替换 + CHGNet 选相**补出的结构：实测其与 MP 真实结构的 CGCNN 预测 bias +0.09 eV/atom、ρ 0.97，与模型自身误差同量级，故可同层比较。另有 B 层（岩盐型原型）单列，因其与真实多晶型差 +1.25 eV/atom，**仅组内可比**。电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；导电性默认用实验口径的成分带隙（CGCNN 结构带隙在 Li 体系与实验口径排序负相关 ρ≈-0.57，PBE 系统性低估，仅作交叉检查列），可用 --prefer-struct-gap 切换为结构口径。",
   "caveats": [

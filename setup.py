@@ -59,6 +59,7 @@ PY_MODULES = [
     "annotate_reference",
     "pareto_interactive",
     "resource_risk",
+    "build_voltage_pairs",
     "structure_features",
     "train_capacity",
     "train_cgcnn",
@@ -77,7 +78,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.21.0",
+    version="1.22.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

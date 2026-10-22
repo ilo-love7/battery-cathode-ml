@@ -59,6 +59,7 @@ from voltage import theoretical_capacity_mAh_g  # noqa: E402
 CANDIDATES = ROOT / "data" / "cathode_candidates.csv"
 STRUCTURES = ROOT / "data" / "raw" / "mp_structures_candidates.json.gz"
 PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_candidates.json.gz"
+PAIRS_ALL = ROOT / "data" / "raw" / "mp_voltage_pairs_all.json.gz"   # MP + 构造（v1.22.0）
 PROTOTYPES = ROOT / "data" / "raw" / "mp_structures_candidates_prototype.json.gz"
 POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz"
 ENSEMBLES = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
@@ -247,7 +248,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="结构模型驱动的候选筛选")
     ap.add_argument("--candidates", default=str(CANDIDATES))
     ap.add_argument("--structures", default=str(STRUCTURES))
-    ap.add_argument("--pairs", default=str(PAIRS))
+    ap.add_argument("--pairs", default=str(PAIRS),
+                    help="电极对文件（默认只用 MP 真实电极对）")
+    ap.add_argument("--use-constructed-pairs", action="store_true",
+                    help=("允许使用构造两相（v1.22.0）。**默认关闭**：实测构造法残差 "
+                          "MAE 0.347 V 与模型误差 0.353 V 同量级，不宜驱动排序；"
+                          "开启后仅影响覆盖率统计与标记，评分仍用成分电压。"))
     ap.add_argument("--prototypes", default=str(PROTOTYPES),
                     help="岩盐型原型文件（最后手段；见 generate_prototype_structures.py）")
     ap.add_argument("--polymorphs", default=str(POLYMORPHS),
@@ -356,11 +362,29 @@ def main(argv=None) -> int:
 
     # ---- 电极对：双塔 CGCNN 电压 ----
     cg_v = {}
+    df_construct_info = {}
     if not args.no_cgcnn and Path(args.pairs).exists():
         with gzip.open(args.pairs, "rt", encoding="utf-8") as f:
             pair_rows = json.load(f)
-        cg_v = _cgcnn_voltage(Path(CGCNN_V), {r["query_formula"]: r for r in pair_rows})
-        print(f"电极对命中（结构电压）: {len(cg_v)}/{len(formulas)}")
+        # 构造的两相**默认不参与评分**：残差 0.347 V ≈ 模型误差 0.353 V（见 metrics_voltage_pairs）
+        constructed = {r["query_formula"] for r in pair_rows
+                       if str(r.get("source", "")).startswith("constructed")}
+        n_used = len(pair_rows)
+        if args.use_constructed_pairs:
+            print(f"电极对(含构造): {n_used} 条，其中构造 {len(constructed)} 条"
+                  f"（仅统计/标记，评分仍用成分电压）")
+            cg_v = _cgcnn_voltage(Path(CGCNN_V),
+                                  {r["query_formula"]: r for r in pair_rows
+                                   if r["query_formula"] not in constructed})
+        else:
+            cg_v = _cgcnn_voltage(Path(CGCNN_V), {r["query_formula"]: r for r in pair_rows})
+        print(f"电极对命中（结构电压，用于评分）: {len(cg_v)}/{len(formulas)}")
+        # 构造的两相**永不用于评分**（残差 0.347 V ≈ 模型误差 0.353 V）：
+        # 无论是否加 --use-constructed-pairs，评分都只用 MP 真电极对；
+        # 该开关仅影响"是否把构造对纳入覆盖率统计"。
+        df_construct_info = {"n_pairs_total": n_used, "n_constructed": len(constructed),
+                             "used_in_scoring": False,
+                             "constructed_allowed_for_coverage": bool(args.use_constructed_pairs)}
     else:
         print("[INFO] 无电极对文件或已禁用双塔模型 → 电压全部来自成分模型")
 
@@ -441,6 +465,12 @@ def main(argv=None) -> int:
         df["structure_origin"].isin(["MP弛豫", "同构替换(CHGNet)", "无序系综(CHGNet)"]),
         "A_comparable",
         np.where(df["structure_from_prototype"], "B_prototype", "C_none"))
+    _vp_for_metrics = None
+    _vp = ROOT / "data" / "raw" / "mp_voltage_pairs_all.json.gz"
+    _vpj = OUT / "metrics_voltage_pairs.json"
+    if _vp.exists() and _vpj.exists():
+        with open(_vpj, encoding="utf-8") as _f:
+            _vp_for_metrics = json.load(_f)
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
     # ---- 局部自适应区间宽度（每候选自己的 90% 半宽） ----
     loc_widths, loc_info = {}, {}
@@ -804,6 +834,8 @@ def main(argv=None) -> int:
         },
         "weights_3dim_legacy": {"stability": W_STAB_3D, "conduction": W_COND_3D,
                                 "capacity": W_CAP_3D},
+        "voltage_pair_coverage": ({**(_vp_for_metrics or {}), **df_construct_info}
+                                  if isinstance(_vp_for_metrics, dict) else None),
         "voltage_dimension": {
             "source": "局部自适应 conformal（已校准）",
             "n_candidates_with_local_width": int(df["voltage_pi90_halfwidth_V"].notna().sum()),

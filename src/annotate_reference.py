@@ -55,6 +55,12 @@ OHZUKU = ("Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",
 LEE = ("Lee et al., Science 343, 519 (2014)", "10.1126/science.1246432")
 BARPANDA = ("Barpanda et al., Nat. Mater. 10, 772 (2011)", "10.1038/nmat3093")
 MANTHIRAM = ("Manthiram, Nat. Commun. 11, 1550 (2020)", "10.1038/s41467-020-15355-0")
+WHITTINGHAM = ("Whittingham, Science 192, 1126 (1976)",
+               "10.1126/science.192.4244.1126")
+THACKERAY2007 = ("Thackeray et al., J. Mater. Chem. 17, 3112 (2007)",
+                 "10.1039/b702425h")
+OHZUKU1991 = ("Ohzuku et al., J. Electrochem. Soc. 138, 2207 (1991)"
+              "（Crossref 收录为 ChemInform 摘要）", "10.1002/chin.199345021")
 REVIEW_ONLY = ("综述汇总（Manthiram 2020 等，未逐条核验原始文献）", "")
 
 # 材料 -> (引用, DOI, 是否核验)
@@ -74,11 +80,8 @@ CITATIONS = {
     "LiNi0.4Co0.2Mn0.4O2": (OHZUKU, False),
     "LiNi0.4Co0.3Mn0.3O2": (OHZUKU, False),
     "LiNi0.8Co0.15Al0.05O2": (MANTHIRAM, False),
-    "LiNiO2": (MANTHIRAM, False),
     "LiMnO2": (MANTHIRAM, False),
     "LiCrO2": (MANTHIRAM, False),
-    "Li1.2Ni0.13Co0.13Mn0.54O2": (MANTHIRAM, False),
-    "Li1.2Ni0.2Mn0.6O2": (MANTHIRAM, False),
     "LiNi0.5Mn1.5O4": (MANTHIRAM, False),
     "LiCoMnO4": (MANTHIRAM, False),
     "LiV3O8": (MANTHIRAM, False),
@@ -94,11 +97,17 @@ CITATIONS = {
     "Li1.2Mn0.4Zr0.4O2": (LEE, True),
     "Li1.3Mn0.4Nb0.3O2": (LEE, True),
     "Li1.2Mn0.4Nb0.4O2": (LEE, True),
-    "TiS2": (MANTHIRAM, False), "VS2": (MANTHIRAM, False), "MoS2": (MANTHIRAM, False),
+    # 层状硫化物：Whittingham 1976 Science（插层化学的奠基工作，TiS2 为主）
+    "TiS2": (WHITTINGHAM, True), "VS2": (WHITTINGHAM, False), "MoS2": (WHITTINGHAM, False),
+    # 富锂锰基：Thackeray 2007 J. Mater. Chem.
+    "Li1.2Ni0.13Co0.13Mn0.54O2": (THACKERAY2007, True),
+    "Li1.2Ni0.2Mn0.6O2": (THACKERAY2007, True),
+    "LiNiO2": (OHZUKU1991, True),
 }
 
 VERIFIED_DOIS = {PADHI[1], MIZUSHIMA[1], THACKERAY[1], OHZUKU[1], LEE[1],
-                 BARPANDA[1], MANTHIRAM[1]}
+                 BARPANDA[1], MANTHIRAM[1], WHITTINGHAM[1], THACKERAY2007[1],
+                 OHZUKU1991[1]}
 
 
 def main(argv=None) -> int:

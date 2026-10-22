@@ -910,3 +910,64 @@ class TestHardConstraints:
     def test_none_mode_exists_for_comparison(self):
         src = open(ROOT / "src" / "pareto_interactive.py", encoding="utf-8").read()
         assert '"none"' in src and "DEFAULT_CONSTRAINTS" in src
+
+
+class TestVoltagePairConstruction:
+    """构造两相（移除 Li + MLIP 弛豫）：覆盖率提升但残差必须如实报告（v1.22.0）。"""
+
+    PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_all.json.gz"
+    METRICS = ROOT / "results" / "metrics_voltage_pairs.json"
+    SCREEN = ROOT / "results" / "metrics_screening_struct.json"
+
+    def test_constructed_pairs_have_both_phases(self):
+        if not self.PAIRS.exists():
+            pytest.skip("未构造两相")
+        rows = json.load(gzip.open(self.PAIRS, "rt", encoding="utf-8"))
+        assert len(rows) >= 30
+        for r in rows:
+            assert r["structure_charge"].get("sites"), r["query_formula"]
+            assert r["structure_discharge"].get("sites"), r["query_formula"]
+            if str(r.get("source", "")).startswith("constructed"):
+                assert r["n_charge_atoms"] < len(r["structure_discharge"]["sites"])
+
+    def test_construction_residual_is_reported(self):
+        if not self.METRICS.exists():
+            pytest.skip("未运行构造流程")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        v = m.get("validation")
+        assert v and v["n"] >= 10, "必须给出构造法 vs MP 真电极对的对照"
+        # 残差量级必须写清（本项目实测 ~0.35 V，与模型误差同量级）
+        assert 0 < v["MAE_constructed_vs_mp_V"] < 0.8
+
+    def test_scoring_still_uses_mp_pairs_only(self):
+        """构造对默认不得驱动排序 —— 若有人改成默认启用，此测试会失败。"""
+        if not self.SCREEN.exists():
+            pytest.skip("未生成筛选指标")
+        m = json.load(open(self.SCREEN, encoding="utf-8"))
+        vc = m.get("voltage_pair_coverage") or {}
+        assert vc.get("used_in_scoring") is False
+        assert m["voltage_dimension"]["n_candidates_with_local_width"] > 0
+
+
+class TestRegulationScenariosAndCitations:
+    """法规情景阈值 + 参考表溯源覆盖（v1.22.0）。"""
+
+    REF = ROOT / "data" / "reference_cathodes.csv"
+    SRC = ROOT / "src" / "pareto_interactive.py"
+
+    def test_citation_coverage_improved(self):
+        d = pd.read_csv(self.REF, encoding="utf-8-sig")
+        assert int(d["citation_verified"].sum()) >= 18
+        dois = {x for x in d["doi"].astype(str) if x}
+        assert len(dois) >= 9, f"唯一 DOI 太少: {len(dois)}"
+
+    def test_regulation_scenarios_exist_and_are_documented(self):
+        src = open(self.SRC, encoding="utf-8").read()
+        for key in ("eu2031", "eu2036", "strict"):
+            assert key in src, key
+        # 语义差距必须写在代码里（回收料比例 != 阴极 Co 含量上限）
+        assert "回收料" in src
+        m = json.load(open(ROOT / "results" / "metrics_pareto_profiles.json",
+                           encoding="utf-8"))
+        assert m["constraints"]["mode"] == "default"
+        assert "scenario" in m["constraints"]

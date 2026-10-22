@@ -1,0 +1,14 @@
+{
+  "n_candidates_with_mp_pairs": 20,
+  "n_constructed": 0,
+  "n_total_pairs": 20,
+  "coverage_after": 50.0,
+  "n_failed": 5,
+  "validation": {
+    "n": 15,
+    "MAE_constructed_vs_mp_V": 0.3469,
+    "max_abs_diff_V": 0.8603,
+    "note": "用同一流程对**已有 MP 电极对**的候选重新构造两相，比较双塔模型的预测差异；该差异即「构造法引入的额外不确定度」，应写进文档。"
+  },
+  "note": "用「移除 Li + CHGNet 弛豫」构造脱锂相；构造法在已有 MP 电极对的候选上做了对照，残差见 validation —— 覆盖率的提升以该残差为代价。"
+}

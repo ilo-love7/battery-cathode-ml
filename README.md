@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 193 个单元测试（192 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 198 个单元测试（197 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -501,12 +501,13 @@ battery-cathode-ml/
 │   ├── annotate_reference.py    # ★ 参考表逐条引用（DOI 经 Crossref 核验）
 │   ├── pareto_interactive.py    # ★ 偏好驱动的 Pareto 最优子集
 │   ├── resource_risk.py         # ★ 资源供应风险与毒性（序数打分）
+│   ├── build_voltage_pairs.py   # ★ 构造两相（提升覆盖率；残差 0.35V，默认不用于评分）
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 193 个单元测试
+├── tests/                       # 198 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -535,7 +536,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 193 个测试
+pytest tests/ -v                                             # 198 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -573,7 +574,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.21.0}
+  version = {1.22.0}
 }
 ```
 

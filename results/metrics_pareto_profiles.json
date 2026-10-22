@@ -347,6 +347,8 @@
   "note": "Pareto 前沿上有 32/40 候选（v1.18.0），因此单一权重排名是任意的；本脚本把偏好作为输入，输出该偏好下的最优子集。各偏好共同入选的候选可视为「稳健优选」。",
   "constraints": {
     "mode": "default",
+    "scenario": "none",
+    "scenario_note": null,
     "thresholds": {
       "max_cobalt_frac": 0.1,
       "max_toxicity": 2,
