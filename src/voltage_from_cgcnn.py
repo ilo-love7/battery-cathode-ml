@@ -128,6 +128,10 @@ def main(argv=None) -> int:
     df = pd.read_csv(vp, encoding="utf-8-sig")
     if args.limit:
         df = df.head(args.limit)
+        # 子集运行不得覆盖全量产物（v1.4.2 教训）
+        stem, dot, ext = str(args.out).partition(".")
+        args.out = f"{stem}_smoke{dot}{ext}" if dot else f"{args.out}_smoke"
+        print(f"[冒烟模式] 输出改名: {Path(args.out).name}")
     with gzip.open(sp, "rt", encoding="utf-8") as f:
         structures = {r["material_id"]: r["structure"] for r in json.load(f) if r.get("structure")}
 
@@ -207,8 +211,10 @@ def main(argv=None) -> int:
         "note": ("V = [E_form(脱锂相) − E_form(嵌锂相)] / n_Li，"
                  "其中每胞形成能 = 每原子预测 × 单胞原子数，n_Li 取两相原子数差。"),
     }
-    OUT_JSON.parent.mkdir(exist_ok=True)
-    with open(OUT_JSON, "w", encoding="utf-8") as f:
+    out_json = OUT_JSON if not args.limit else OUT_JSON.with_name(
+        OUT_JSON.stem + "_smoke" + OUT_JSON.suffix)
+    out_json.parent.mkdir(exist_ok=True)
+    with open(out_json, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
     res.to_csv(args.out, index=False, encoding="utf-8-sig")
 
@@ -220,7 +226,7 @@ def main(argv=None) -> int:
     if comp:
         print(f"  成分模型（同口径参考）: MAE={comp['MAE_V']:.4f} V  ρ={comp['spearman']:.3f}  n={comp['n']}")
     print(f"  中位数基线 MAD={mad:.4f} V")
-    print(f"[SAVE] {Path(args.out).name} / {OUT_JSON.name}")
+    print(f"[SAVE] {Path(args.out).name} / {out_json.name}")
     return 0
 
 

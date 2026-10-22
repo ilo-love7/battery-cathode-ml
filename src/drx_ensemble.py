@@ -83,6 +83,15 @@ def main(argv=None) -> int:
     if not Path(args.polymorph).exists():
         print(f"[ERROR] 找不到 {args.polymorph}（先跑 src/template_substitution.py）")
         return 2
+    if args.limit:
+        # v1.4.2 的教训：子集运行绝不能覆盖全量产物
+        for attr in ("out", "metrics"):
+            val = getattr(args, attr)
+            if "_smoke" not in val:
+                stem, dot, ext = val.partition(".")
+                setattr(args, attr, f"{stem}_smoke{dot}{ext}" if dot else f"{val}_smoke")
+        print(f"[冒烟模式] 输出改名: {Path(args.out).name} / {Path(args.metrics).name}")
+
     with gzip.open(args.polymorph, "rt", encoding="utf-8") as f:
         poly_rows = json.load(f)
     if args.limit:

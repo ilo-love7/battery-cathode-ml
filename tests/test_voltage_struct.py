@@ -842,3 +842,27 @@ class TestResourceRisk:
         assert len(m["pareto"]["objectives"]) == 6
         assert m["pareto"]["n_front"] >= 32, "六目标前沿不应少于四目标的 32 条"
         assert m["pareto"]["n_front"] <= 40
+
+
+class TestSubsetTagGuard:
+    """v1.4.2 的教训：带 --limit/--subset 的脚本绝不能覆盖全量产物。
+
+    这里用源码级断言固化该策略（比"跑一次看看"更早失效）。
+    """
+
+    # 脚本 -> 其"部分运行不覆盖全量产物"的守卫标记
+    GUARDS = {
+        "drx_ensemble.py": "_smoke",
+        "voltage_from_cgcnn.py": "_smoke",
+        "pareto_interactive.py": "部分运行",
+        "train_cgcnn.py": "_smoke",
+        "train_cgcnn_mp.py": "_smoke",
+        "train_cgcnn_voltage.py": "_smoke",
+        "train_ef_struct.py": "_smoke",
+        "train_voltage_struct.py": "_smoke",
+    }
+
+    def test_every_partial_run_renames_its_output(self):
+        for name, marker in self.GUARDS.items():
+            src = open(ROOT / "src" / name, encoding="utf-8").read()
+            assert marker in src, f"{name} 缺少部分运行改名防护（期望标记 {marker!r}）"

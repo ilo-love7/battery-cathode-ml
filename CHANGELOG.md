@@ -3,6 +3,33 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.1] - 2026-10-21
+
+**全项目审计（12 类检查）后的一致性修复。**
+
+审计方法：脚本化检查版本一致性、模块登记、CLI 编码守卫、重依赖导入策略、禁用词、
+测试计数、文档引用、入库体积、产物 schema、**未使用导入（AST）**、静默异常、子集污染防护；
+并对 7 条关键 CLI 做功能冒烟（含 `predictor` 三化学式预测值互不相同的断言）。
+
+### 修复
+
+| 类别 | 问题 | 处理 |
+|---|---|---|
+| 未使用导入 | `predict_voltage_cgcnn.py` 导入 `build_model` 但调用的是 `build_pair_net` | 删除 |
+| 未使用导入 | `screening_struct.py` 导入 `ELEMENTS` 未用 | 删除 |
+| 未使用导入 | `train_cgcnn.py` 导入 `pandas as pd` 未用 | 删除 |
+| **子集污染** | `drx_ensemble.py --limit`、`voltage_from_cgcnn.py --limit`、`pareto_interactive.py --profile/--weights` **会覆盖全量产物**（v1.4.2 教训重演） | 三处均改为自动改名 `*_smoke` / `*_<偏好>` |
+| 静默异常 | `fetch_mp_structures.py` 容差匹配失败被 `pass` 吞掉（"无匹配"与"检索失败"无法区分）、`screening_struct.py` 局部区间指标读取失败静默 | 改为显式 `[WARN]` |
+| 文档一致性 | `项目完成总结.md` 残留旧测试数 142；README 容量写成 25.2 而产物为 25.1601 | 修正为 190 / 25.16 |
+| 回归防护 | —— | 新增 `TestSubsetTagGuard`：**源码级断言** 8 个脚本都带"部分运行改名"守卫（比"跑一次看看"更早失效） |
+
+> 审计中还发现 4 个 `--limit`/`--subset` 脚本（`export_cgcnn.py`、`fetch_mp_data.py`）
+> 属于"本就要导出子集"，不需要改名，故未纳入守卫清单。
+
+### 变更
+
+- 测试 189 → **190**（189 通过 + 1 条件跳过）；版本 1.20.0 → 1.20.1
+
 ## [1.20.0] - 2026-10-21
 
 **新增第五维度：资源与法规（供应风险/毒性），Pareto 扩到六目标。**

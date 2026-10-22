@@ -84,6 +84,16 @@ def main(argv=None) -> int:
     ap.add_argument("--top", type=int, default=8)
     args = ap.parse_args(argv)
 
+    # 单偏好/自定义权重属于"部分运行"：不得覆盖全量 5 偏好的产物（v1.4.2 教训）
+    partial = bool(args.profile or args.weights)
+    tag = args.profile or "custom"
+    out_csv, out_json, out_png = OUT_CSV, OUT_JSON, OUT_PNG
+    if partial:
+        out_csv = OUT_CSV.with_name(f"{OUT_CSV.stem}_{tag}{OUT_CSV.suffix}")
+        out_json = OUT_JSON.with_name(f"{OUT_JSON.stem}_{tag}{OUT_JSON.suffix}")
+        out_png = OUT_PNG.with_name(f"{OUT_PNG.stem}_{tag}{OUT_PNG.suffix}")
+        print(f"[部分运行] 输出改名: {out_json.name}")
+
     if not Path(args.ranking).exists():
         print(f"[ERROR] 找不到 {args.ranking}（先跑 screening_struct.py）")
         return 2
@@ -130,7 +140,7 @@ def main(argv=None) -> int:
         print(top[["name", "formula", "risk_level", "pareto_rank",
                    f"score_{name}"]].to_string(index=False))
 
-    OUT_JSON.parent.mkdir(exist_ok=True)
+    out_json.parent.mkdir(exist_ok=True)
     payload = {
         "n_candidates": int(len(df)),
         "n_profiles": len(profiles),
@@ -148,9 +158,9 @@ def main(argv=None) -> int:
         "profile_votes", ascending=False)
     payload["robust_picks"] = robust[["name", "formula", "risk_level",
                                       "profile_votes"]].to_dict("records")
-    with open(OUT_JSON, "w", encoding="utf-8") as f:
+    with open(out_json, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    out.to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
+    out.to_csv(out_csv, index=False, encoding="utf-8-sig")
 
     print("\n" + "=" * 74)
     print(f"  稳健优选（在 ≥{max(2, len(profiles)//2)}/{len(profiles)} 个偏好下都进 Top {args.top}）")
@@ -179,11 +189,11 @@ def main(argv=None) -> int:
                      fontsize=9)
         fig.colorbar(im, ax=ax, label="排名（1=最好）")
         fig.tight_layout()
-        fig.savefig(OUT_PNG, dpi=150)
+        fig.savefig(out_png, dpi=150)
         plt.close(fig)
-        print(f"偏好排名图 -> results/{OUT_PNG.name}")
+        print(f"偏好排名图 -> results/{out_png.name}")
 
-    print(f"[SAVE] results/{OUT_CSV.name} / {OUT_JSON.name}")
+    print(f"[SAVE] results/{out_csv.name} / {out_json.name}")
     return 0
 
 

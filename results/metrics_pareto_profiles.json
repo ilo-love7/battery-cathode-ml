@@ -47,7 +47,7 @@
         {
           "name": "磷酸钒锂",
           "formula": "Li3V2(PO4)3",
-          "risk_level": "中",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 48.75
         },
@@ -61,7 +61,7 @@
         {
           "name": "层状钒氧化物",
           "formula": "LiV3O8",
-          "risk_level": "低",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 68.0
         },
@@ -135,7 +135,7 @@
         {
           "name": "层状钒氧化物",
           "formula": "LiV3O8",
-          "risk_level": "低",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 68.0
         }
@@ -167,7 +167,7 @@
         {
           "name": "磷酸钒锂",
           "formula": "Li3V2(PO4)3",
-          "risk_level": "中",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 48.75
         },
@@ -255,14 +255,14 @@
         {
           "name": "钴酸锂",
           "formula": "LiCoO2",
-          "risk_level": "低",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 50.0
         },
         {
           "name": "层状钒氧化物",
           "formula": "LiV3O8",
-          "risk_level": "低",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 68.0
         },
@@ -294,7 +294,7 @@
         {
           "name": "磷酸钒锂",
           "formula": "Li3V2(PO4)3",
-          "risk_level": "中",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 48.75
         },
@@ -315,7 +315,7 @@
         {
           "name": "层状钒氧化物",
           "formula": "LiV3O8",
-          "risk_level": "低",
+          "risk_level": "高",
           "pareto_rank": 1.0,
           "score": 68.0
         },
@@ -355,7 +355,7 @@
     {
       "name": "层状钒氧化物",
       "formula": "LiV3O8",
-      "risk_level": "低",
+      "risk_level": "高",
       "profile_votes": 4
     },
     {
@@ -373,7 +373,7 @@
     {
       "name": "磷酸钒锂",
       "formula": "Li3V2(PO4)3",
-      "risk_level": "中",
+      "risk_level": "高",
       "profile_votes": 3
     },
     {

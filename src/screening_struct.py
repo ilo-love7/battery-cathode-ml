@@ -52,7 +52,6 @@ if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
 from cgcnn_data import build_graph  # noqa: E402
-from features import ELEMENTS  # noqa: E402
 from formula import parse_formula  # noqa: E402
 from resource_risk import score_formula as resource_score  # noqa: E402
 from voltage import theoretical_capacity_mAh_g  # noqa: E402
@@ -454,7 +453,8 @@ def main(argv=None) -> int:
         try:
             with open(OUT / "metrics_local_conformal.json", encoding="utf-8") as fh:
                 loc_info = json.load(fh)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] 读取局部区间指标失败（区间将退回全局 q）: {exc}")
             loc_info = {}
         print(f"局部自适应区间: {len(loc_widths)} 个候选（列 {col}）")
     df["voltage_pi90_halfwidth_V"] = [loc_widths.get(f, np.nan) for f in formulas]

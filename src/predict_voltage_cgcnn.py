@@ -62,7 +62,7 @@ def fetch_pairs_online(formulas: list) -> list:
 
 def predict(model_path: Path, rows: list) -> pd.DataFrame:
     import torch
-    from cgcnn_model import batch_tensors, build_model
+    from cgcnn_model import batch_tensors
 
     if not model_path.exists():
         raise SystemExit(

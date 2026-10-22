@@ -147,8 +147,8 @@ def fetch_formulas(key: str, formulas: list, tolerant: bool = True,
                              and getattr(d, "energy_above_hull", None) is not None]
                     if cands:
                         best, match_type = min(cands, key=lambda d: d.energy_above_hull), "reduced"
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  [WARN] {f} 约化式检索失败: {type(exc).__name__}: {str(exc)[:80]}")
 
             if best is None and tolerant and Composition is not None:
                 comp = Composition(f)
@@ -156,7 +156,8 @@ def fetch_formulas(key: str, formulas: list, tolerant: bool = True,
                 try:
                     docs = mpr.materials.summary.search(
                         elements=els, num_chunks=2, chunk_size=500, fields=SUMMARY_FIELDS)
-                except Exception:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  [WARN] {f} 元素组合检索失败: {type(exc).__name__}: {str(exc)[:80]}")
                     docs = []
                 hits = []
                 for d in docs:
@@ -235,7 +236,7 @@ def fetch_pairs(key: str, formulas: list, exact: bool = True) -> list:
                         if near:
                             cands = near
                     except Exception:  # noqa: BLE001
-                        pass
+                        continue            # 单个候选成分解析失败，跳过该候选（不影响整体匹配）
             if not cands:
                 print(f"  [SKIP] {f}: 无成对 id")
                 continue

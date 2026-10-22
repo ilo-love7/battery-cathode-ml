@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 189 个单元测试（188 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 190 个单元测试（189 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -100,7 +100,7 @@ python run_pipeline.py
 | **带隙（CGCNN · MP，阴性结果）** | 同上（MP DFT 带隙，33% 金属） | 3,000 / 8,000 | CGCNN（log1p，GPU） | **0.7304 / 0.5275 eV**（成分基线 0.6479 / 0.5605） | 0.928 | — |
 | **平均电压（双塔 CGCNN）** | MP 插入电极两相结构（端到端） | 2,532 | 双塔 CGCNN（GPU） | **0.352 V**（随机）/ 0.401（分组） | 0.521 | 0.742 |
 | 平均电压（成分 + 结构描述符） | 同上 + 44 维描述符 | 2,667 | RF+HGB 集成 | 0.408 V（随机）/ 0.445（分组） | 0.597 | 0.705 |
-| **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.2 mAh/g** | 46.9 | 0.663 |
+| **比容量（多目标）** | 同上（真实 `capacity_grav`） | 2,672 | RF+HGB 集成 | **25.16 mAh/g** | 46.9 | 0.663 |
 | 平均电压（合成对照） | `battery_voltage.csv`（合成演示数据） | 500 | RF+HGB 集成 | 0.192 V | 0.252 | 0.548 |
 
 **外部验证 I｜文献商用正极（12 个，不参与训练）**：
@@ -506,7 +506,7 @@ battery-cathode-ml/
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 189 个单元测试
+├── tests/                       # 190 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -521,7 +521,7 @@ battery-cathode-ml/
 | # | 方向 | 做什么 | 预期收益 |
 |---|---|---|---|
 | ~~1~~ | ~~接真实电池数据~~ ✅ **已完成** | `fetch_mp_battery.py` + `prepare_mp_data.py` 拉取并清洗 2,772 条 MP 插入电极，真实电压模型 MAE 0.419 V | 电压指标首次具备物理意义 |
-| ~~2~~ | ~~容量等多目标~~ ✅ **已完成** | `train_capacity.py`：真实 `capacity_grav`，MAE 25.2 mAh/g（基线 47.8），任意化学式可用 | 筛选缺 `nLi_extract` 时也有容量维度 |
+| ~~2~~ | ~~容量等多目标~~ ✅ **已完成** | `train_capacity.py`：真实 `capacity_grav`，MAE 25.16 mAh/g（基线 47.8），任意化学式可用 | 筛选缺 `nLi_extract` 时也有容量维度 |
 | ~~2~~ | ~~结构特征 → 图神经网络~~ ✅ **已完成** | matbench 域 CGCNN 0.0401 eV/胞；**MP 含 Li 域 test 0.0962 eV/atom（8k）/ 0.1921（3k）**，比同数据成分基线好 1.9×/1.4×；已配 `predict_cgcnn.py` 推理 CLI | 结构模型可用，形成能进入 0.1 eV/atom 量级 |
 | ~~3~~ | ~~不确定性校准~~ ✅ **已完成** | `conformal.py`：90% 区间 ±1.00 V / ±75.8 mAh/g，交叉校准覆盖率 90.0%/90.1%；并指出模型分歧只有真实 MAE 的 17% | 预测从「一个数」变成「一个数 + 有覆盖率保证的区间」 |
 | 4 | **多目标优化** | 用 Pareto 前沿（电压 vs 容量 vs 稳定性）替代线性加权评分 | 避免权重拍脑袋，给出取舍曲线 |
@@ -535,7 +535,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 189 个测试
+pytest tests/ -v                                             # 190 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -573,7 +573,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.20.0}
+  version = {1.20.1}
 }
 ```
 
