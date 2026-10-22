@@ -712,10 +712,14 @@ class TestProvenanceAndPareto:
         for col in ("pareto_rank", "is_pareto"):
             assert col in d.columns
         front = d[d["is_pareto"]]
+        m = json.load(open(self.METRICS, encoding="utf-8"))
         assert len(front) >= 2
+        # 必须与 screening_struct 的 6 目标一致：4 维投影下"被支配"不代表整体被支配
+        assert len(m["pareto"]["objectives"]) == 6
         objs = np.column_stack([
             -front["stability_conservative_eV_atom"], -front["gap_conservative_eV"],
-            front["Q_theoretical_mAh_g"], front["voltage_conservative_V"]])
+            front["Q_theoretical_mAh_g"], front["voltage_conservative_V"],
+            -front["resource_risk_score"], -front["toxicity_class"]])
         # 前沿内部任意两点不得互相支配
         for i in range(len(objs)):
             for j in range(len(objs)):
@@ -790,3 +794,51 @@ class TestParetoInteractive:
         half = max(2, m["n_profiles"] // 2)
         for r in m["robust_picks"]:
             assert r["profile_votes"] >= half
+
+
+class TestResourceRisk:
+    """资源与法规维度（序数打分，v1.20.0）。"""
+
+    def test_scores_are_ordinal_and_monotonic_in_cobalt(self):
+        import resource_risk as rr
+        lco = rr.score_formula("LiCoO2")
+        lfp = rr.score_formula("LiFePO4")
+        assert 0 <= lfp["resource_risk_score"] < lco["resource_risk_score"] <= 100
+        # LiCoO2 每 4 个原子只有 1 个 Co -> 原子分数加权后风险分约 37（"中"）；
+        # 但 Co 本身必须被识别为高风险关键元素
+        assert lco["resource_risk_level"] in ("中", "高")
+        assert lfp["resource_risk_level"] == "低"
+        assert "Co" in lco["critical_elements"] and "Co供应链" in lco["flags"]
+        # Li 的供应风险分恰为 55（同样列入关键矿产），故两者都被标出
+        assert set(lco["high_risk_elements"]) == {"Co", "Li"}
+        assert lco["toxicity_class"] >= lfp["toxicity_class"] >= 1
+
+    def test_vanadium_toxicity_is_flagged(self):
+        import resource_risk as rr
+        v = rr.score_formula("LiVPO4F")
+        assert v["toxicity_class"] >= 3
+        assert "毒性≥3" in v["flags"]
+
+    def test_screening_reports_resource_columns(self):
+        path = ROOT / "results" / "cathode_ranking_struct.csv"
+        if not path.exists():
+            pytest.skip("未生成排序表")
+        d = pd.read_csv(path, encoding="utf-8-sig")
+        for col in ("resource_risk_score", "resource_risk_level", "toxicity_class",
+                    "critical_elements", "resource_flags"):
+            assert col in d.columns, col
+        m = json.load(open(ROOT / "results" / "metrics_screening_struct.json",
+                           encoding="utf-8"))
+        rr = m["resource_regulatory"]
+        assert rr["n_high_risk"] == int((d["resource_risk_score"] >= 55).sum())
+        assert rr["n_toxicity_ge3"] == int((d["toxicity_class"] >= 3).sum())
+
+    def test_adding_objectives_can_only_grow_the_frontier(self):
+        """性质检查：目标越多，非支配集合只会变大（不能变小）。"""
+        path = ROOT / "results" / "metrics_screening_struct.json"
+        if not path.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(path, encoding="utf-8"))
+        assert len(m["pareto"]["objectives"]) == 6
+        assert m["pareto"]["n_front"] >= 32, "六目标前沿不应少于四目标的 32 条"
+        assert m["pareto"]["n_front"] <= 40

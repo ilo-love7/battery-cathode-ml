@@ -54,6 +54,7 @@ if _SRC not in sys.path:
 from cgcnn_data import build_graph  # noqa: E402
 from features import ELEMENTS  # noqa: E402
 from formula import parse_formula  # noqa: E402
+from resource_risk import score_formula as resource_score  # noqa: E402
 from voltage import theoretical_capacity_mAh_g  # noqa: E402
 
 CANDIDATES = ROOT / "data" / "cathode_candidates.csv"
@@ -418,6 +419,20 @@ def main(argv=None) -> int:
     df["gap_diff_eV"] = (df["cgcnn_gap_eV"] - df["comp_gap_eV"]).abs()
     df["has_structure"] = df["cgcnn_ef_eV_atom"].notna()
     df["structure_origin"] = [origin.get(f, "无结构") for f in formulas]
+    # ---- 资源与法规维度（序数打分，第五个目标；见 resource_risk.py 的诚实声明） ----
+    res_rows = []
+    for f_ in formulas:
+        try:
+            res_rows.append(resource_score(f_))
+        except ValueError:
+            res_rows.append({"resource_risk_score": np.nan, "resource_risk_level": "未知",
+                             "toxicity_class": np.nan, "critical_elements": [],
+                             "high_risk_elements": [], "flags": ""})
+    df["resource_risk_score"] = [r["resource_risk_score"] for r in res_rows]
+    df["resource_risk_level"] = [r["resource_risk_level"] for r in res_rows]
+    df["toxicity_class"] = [r["toxicity_class"] for r in res_rows]
+    df["critical_elements"] = ["|".join(r["critical_elements"]) for r in res_rows]
+    df["resource_flags"] = [r["flags"] for r in res_rows]
     df["structure_from_prototype"] = df["structure_origin"].str.startswith("原型")
     # 置信层级（跨层不可混排，见下方评分与产物）：
     #   A_MP=MP 弛豫结构 / B_prototype=原型结构 / C_none=无结构
@@ -556,7 +571,9 @@ def main(argv=None) -> int:
     # （电压风险单独成列，不重复写进 flag）
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
     # 风险等级：结构缺失/相分歧/超窗口 = 高；其余仅提示性标记 = 中；无标记 = 低
-    high_mark = (df["flag"].str.contains("结构缺失|排名偏离大|超常规窗口"))
+    high_mark = (df["flag"].str.contains("结构缺失|排名偏离大|超常规窗口")
+                 | (df["resource_risk_score"] >= 60)
+                 | (df["toxicity_class"] >= 3))
     mid_mark = (df["flag"] != "结构&成分一致")
     df["risk_level"] = np.where(high_mark, "高", np.where(mid_mark, "中", "低"))
 
@@ -594,6 +611,10 @@ def main(argv=None) -> int:
         -df["gap_conservative_eV"].to_numpy(dtype=float),              # 带隙越小越好
         df["Q_theoretical_mAh_g"].to_numpy(dtype=float),               # 容量越高越好
         df["voltage_conservative_V"].to_numpy(dtype=float),            # 电压越高越好
+        -df["resource_risk_score"].fillna(df["resource_risk_score"].max()
+                                          if df["resource_risk_score"].notna().any() else 0
+                                          ).to_numpy(dtype=float),     # 资源风险越低越好
+        -df["toxicity_class"].fillna(1).to_numpy(dtype=float),         # 毒性越低越好
     ])
     n = len(df)
     ranks = np.full(n, np.nan)
@@ -610,7 +631,8 @@ def main(argv=None) -> int:
     df["pareto_rank"] = ranks
     df["is_pareto"] = df["pareto_rank"] == 1
     n_front = int(df["is_pareto"].sum())
-    print(f"\nPareto 前沿（四目标：稳定性/导电性/容量/电压）：{n_front}/40 条非支配")
+    print(f"\nPareto 前沿（六目标：稳定性/导电性/容量/电压/资源风险/毒性）："
+          f"{n_front}/40 条非支配")
 
     OUT.mkdir(exist_ok=True)
     keep = ["rank", "name", "formula", "family", "structure_origin", "cgcnn_ef_eV_atom",
@@ -622,6 +644,8 @@ def main(argv=None) -> int:
             "Q_theoretical_mAh_g", "voltage_conservative_V", "voltage_pi90_halfwidth_V",
             "pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
             "energy_density_Wh_kg", "pct_energy", "score", "score_energy",
+            "resource_risk_score", "resource_risk_level", "toxicity_class",
+            "critical_elements", "resource_flags",
             "score_3dim", "pareto_rank", "is_pareto", "risk_level", "voltage_risk",
             "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
@@ -750,9 +774,18 @@ def main(argv=None) -> int:
                      "改为显式风险项：>4.5V 需高压电解液、>5.0V 超常规窗口、<2.5V 能量密度受限。"),
         },
         "risk_level_counts": df["risk_level"].value_counts().to_dict(),
+        "resource_regulatory": {
+            "n_high_risk": int((df["resource_risk_score"] >= 55).sum()),
+            "n_toxicity_ge3": int((df["toxicity_class"] >= 3).sum()),
+            "median_score": (None if df["resource_risk_score"].dropna().empty else
+                             round(float(df["resource_risk_score"].median()), 1)),
+            "note": ("按关键矿产清单人工整理的**序数**供应风险/毒性（见 resource_risk.py），"
+                     "用于相对提示；Co/V 含量高的候选会被标为高风险，真正的合规评估需查法规原文。"),
+        },
         "pareto": {
             "objectives": ["稳定性(保守)", "导电性(带隙保守,越小越好)",
-                           "理论比容量", "电压(保守下界)"],
+                           "理论比容量", "电压(保守下界)",
+                           "资源供应风险(越低越好)", "毒性(越低越好)"],
             "n_front": n_front,
             "front_members": df[df["is_pareto"]][["name", "formula", "score",
                                                   "risk_level"]].to_dict("records"),

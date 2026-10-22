@@ -36,7 +36,7 @@
   "struct_voltage_coverage_among_ranked": 20,
   "struct_gap_coverage_among_ranked": 40,
   "gap_metal_disagreement_count": 5,
-  "gap_rank_correlation_struct_vs_comp": -0.5304,
+  "gap_rank_correlation_struct_vs_comp": -0.5311,
   "weights": {
     "stability": 0.3,
     "conduction": 0.1,
@@ -45,9 +45,9 @@
   },
   "weights_source": "calibrated",
   "weights_calibration_meta": {
-    "rho_calibrated_single_target": 0.4557,
-    "rho_prior": -0.1419,
-    "multi_objective": 0.3915,
+    "rho_calibrated_single_target": 0.4526,
+    "rho_prior": -0.1425,
+    "multi_objective": 0.3913,
     "external_targets": [
       "specific_energy_Wh_kg",
       "cycle_life_cycles",
@@ -75,18 +75,26 @@
     "note": "校准表明模型电压的排序信息不可用（ρ≈-0.02），故电压不做线性加权排序，改为显式风险项：>4.5V 需高压电解液、>5.0V 超常规窗口、<2.5V 能量密度受限。"
   },
   "risk_level_counts": {
-    "中": 28,
-    "高": 6,
-    "低": 6
+    "高": 23,
+    "中": 15,
+    "低": 2
+  },
+  "resource_regulatory": {
+    "n_high_risk": 0,
+    "n_toxicity_ge3": 18,
+    "median_score": 25.0,
+    "note": "按关键矿产清单人工整理的**序数**供应风险/毒性（见 resource_risk.py），用于相对提示；Co/V 含量高的候选会被标为高风险，真正的合规评估需查法规原文。"
   },
   "pareto": {
     "objectives": [
       "稳定性(保守)",
       "导电性(带隙保守,越小越好)",
       "理论比容量",
-      "电压(保守下界)"
+      "电压(保守下界)",
+      "资源供应风险(越低越好)",
+      "毒性(越低越好)"
     ],
-    "n_front": 32,
+    "n_front": 34,
     "front_members": [
       {
         "name": "DRX-B",
@@ -122,7 +130,7 @@
         "name": "层状钒氧化物",
         "formula": "LiV3O8",
         "score": 68.0,
-        "risk_level": "低"
+        "risk_level": "高"
       },
       {
         "name": "DRX-A",
@@ -164,13 +172,13 @@
         "name": "NMC424",
         "formula": "LiNi0.4Co0.2Mn0.4O2",
         "score": 57.75,
-        "risk_level": "中"
+        "risk_level": "高"
       },
       {
         "name": "NMC111",
         "formula": "LiNi0.333Co0.333Mn0.334O2",
-        "score": 54.125,
-        "risk_level": "中"
+        "score": 54.5,
+        "risk_level": "高"
       },
       {
         "name": "磷酸铁锂",
@@ -182,7 +190,7 @@
         "name": "NMC523",
         "formula": "LiNi0.5Co0.2Mn0.3O2",
         "score": 52.5,
-        "risk_level": "中"
+        "risk_level": "高"
       },
       {
         "name": "磷酸镍锂",
@@ -191,22 +199,22 @@
         "risk_level": "中"
       },
       {
-        "name": "NMC433",
-        "formula": "LiNi0.4Co0.3Mn0.3O2",
-        "score": 52.375,
-        "risk_level": "中"
-      },
-      {
         "name": "NCA",
         "formula": "LiNi0.8Co0.15Al0.05O2",
         "score": 52.25,
-        "risk_level": "中"
+        "risk_level": "高"
+      },
+      {
+        "name": "NMC433",
+        "formula": "LiNi0.4Co0.3Mn0.3O2",
+        "score": 52.0,
+        "risk_level": "高"
       },
       {
         "name": "钴酸锂",
         "formula": "LiCoO2",
         "score": 50.0,
-        "risk_level": "低"
+        "risk_level": "高"
       },
       {
         "name": "磷酸氟铁锂",
@@ -218,37 +226,37 @@
         "name": "NMC622",
         "formula": "LiNi0.6Co0.2Mn0.2O2",
         "score": 49.0,
-        "risk_level": "中"
+        "risk_level": "高"
       },
       {
         "name": "磷酸钒锂",
         "formula": "Li3V2(PO4)3",
         "score": 48.75,
-        "risk_level": "中"
+        "risk_level": "高"
       },
       {
         "name": "磷酸钴锂",
         "formula": "LiCoPO4",
         "score": 48.75,
-        "risk_level": "中"
+        "risk_level": "高"
+      },
+      {
+        "name": "NMC811",
+        "formula": "LiNi0.8Co0.1Mn0.1O2",
+        "score": 47.375,
+        "risk_level": "高"
       },
       {
         "name": "氟磷酸钒锂",
         "formula": "LiVPO4F",
         "score": 47.25,
-        "risk_level": "低"
-      },
-      {
-        "name": "NMC811",
-        "formula": "LiNi0.8Co0.1Mn0.1O2",
-        "score": 47.0,
-        "risk_level": "中"
+        "risk_level": "高"
       },
       {
         "name": "超高镍NMC90",
         "formula": "LiNi0.9Co0.05Mn0.05O2",
-        "score": 46.75,
-        "risk_level": "中"
+        "score": 46.375,
+        "risk_level": "高"
       },
       {
         "name": "硅酸铁锂",
@@ -272,6 +280,12 @@
         "name": "中高镍二元",
         "formula": "LiNi0.5Co0.5O2",
         "score": 43.25,
+        "risk_level": "高"
+      },
+      {
+        "name": "氟硫酸铁锂",
+        "formula": "LiFeSO4F",
+        "score": 34.75,
         "risk_level": "中"
       },
       {
@@ -279,12 +293,17 @@
         "formula": "LiNi0.5Mn1.5O4",
         "score": 33.75,
         "risk_level": "中"
+      },
+      {
+        "name": "二硫化钛",
+        "formula": "TiS2",
+        "score": 30.75,
+        "risk_level": "中"
       }
     ],
     "rank_counts": {
-      "1.0": 32,
-      "2.0": 5,
-      "3.0": 3
+      "1.0": 34,
+      "2.0": 6
     },
     "note": "校准证明没有任何线性权重能同时兼顾所有目标（maximin 解最差 ρ 仍为负），因此除单一分数外给出非支配集合；排名 1 = 前沿，2/3 = 依次剥离后的层。"
   },
@@ -396,7 +415,7 @@
       "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
     }
   ],
-  "stability_rank_correlation_struct_vs_comp": 0.447,
+  "stability_rank_correlation_struct_vs_comp": 0.4468,
   "gap_scoring_source": "成分模型(实验口径)",
   "note": "**主排名（A 层）只收录有 MP 弛豫结构的候选**：稳定性来自 CGCNN（MP 含 Li 域，每原子形成能）。成分模型的 e_form 是 matbench 5 原子胞口径（正负号与 MP 都不同），两者不可混排，故无结构候选单列于 *_fallback.csv（C 层）。A 层除 MP 结构外，还包含**同构替换 + CHGNet 选相**补出的结构：实测其与 MP 真实结构的 CGCNN 预测 bias +0.09 eV/atom、ρ 0.97，与模型自身误差同量级，故可同层比较。另有 B 层（岩盐型原型）单列，因其与真实多晶型差 +1.25 eV/atom，**仅组内可比**。电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；导电性默认用实验口径的成分带隙（CGCNN 结构带隙在 Li 体系与实验口径排序负相关 ρ≈-0.57，PBE 系统性低估，仅作交叉检查列），可用 --prefer-struct-gap 切换为结构口径。",
   "caveats": [
