@@ -3,6 +3,30 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.24.0] - 2026-10-21
+
+**仓库主页按作者其他仓库的模板重排：英文 README + 中文 README.zh-CN.md。**
+
+### 变更
+
+- `README.md` 重写为作者仓库统一模板（英文）：
+  - 居中标题 + 一句话定位 + **5 个徽章**（电压 MAE 0.353 V / 形成能 0.0401 eV/胞 / 结构覆盖 40/40 /
+    测试 200 / MIT）+ 中英语言切换；
+  - `> blockquote` 定位句 + 英文摘要说明（中文正文在 `README.zh-CN.md`）；
+  - **Results at a glance**：10 行任务/数据/模型/指标表（含外部验证）；
+  - **What the numbers do not show**：5 条负面结果 + 2 条结构性发现（岩盐原型不可用 /
+    同构替换可用 / 结构带隙无益 / 电压不可排序 / 构造两相翻倍误差 / 权重先验负相关 / 前沿膨胀）；
+  - **How to use this repository**：按"读者身份 → 路线 → 入口"的路由表；
+  - **Repository map**：`← you are here` 的目录树；
+  - **Quick start**：0) 环境 → 1) 离线流水线 → 2) 预测 CLI → 3) 可选 GPU 轨道；
+  - **Decision layer**：硬约束 / 法规情景 / 校准权重 / Pareto / 偏好 / 风险项 / 误差条 一览；
+  - **Known limitations and scope boundary**、**Verification and provenance**（含两条
+    源码级护栏：部分运行必须改名、重依赖必须延迟导入）；
+  - **Sibling repositories**（列出作者其余 5 个仓库）。
+- 原中文 README 全文迁移至 `README.zh-CN.md`（626 行，内容保持不变，仅加语言切换头）。
+- 测试计数随新增 Markdown 参数化上升：198 → **200**（199 通过 + 1 条件跳过）。
+- 版本 1.23.2 → 1.24.0
+
 ## [1.23.2] - 2026-10-21
 
 ### 修复
