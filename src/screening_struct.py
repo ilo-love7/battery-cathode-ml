@@ -62,12 +62,16 @@ PAIRS = ROOT / "data" / "raw" / "mp_voltage_pairs_candidates.json.gz"
 PROTOTYPES = ROOT / "data" / "raw" / "mp_structures_candidates_prototype.json.gz"
 POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz"
 ENSEMBLES = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
+LOCAL_CONFORMAL = ROOT / "results" / "local_conformal_voltage.csv"
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
 CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
 GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
 CGCNN_V = ROOT / "results" / "cgcnn_voltage.pt"
 OUT = ROOT / "results"
-W_STAB, W_COND, W_CAP = 0.40, 0.30, 0.30
+# v1.15.0：加入"工作电压"维度（正极最核心指标），并让局部自适应区间宽度参与：
+#   稳定性 0.35 / 导电性 0.20 / 容量 0.25 / 电压 0.20
+W_STAB, W_COND, W_CAP, W_VOLT = 0.35, 0.20, 0.25, 0.20
+W_STAB_3D, W_COND_3D, W_CAP_3D = 0.40, 0.30, 0.30      # v1.14.0 的三维口径（保留供对照）
 # 结构与成分两套形成能口径不同（MP 每原子 vs matbench 5 原子胞，正负号都不同），
 # 因此**不能比绝对值**，只能用「排名偏离」这类尺度无关的量。
 RANK_SHIFT_THRESHOLD = 15         # 同一候选在两个来源里的排名差超过该值则标记
@@ -246,6 +250,8 @@ def main(argv=None) -> int:
                     help="岩盐型原型文件（最后手段；见 generate_prototype_structures.py）")
     ap.add_argument("--polymorphs", default=str(POLYMORPHS),
                     help="同构替换相文件（优先级高于岩盐原型；见 template_substitution.py）")
+    ap.add_argument("--local-conformal", default=str(LOCAL_CONFORMAL),
+                    help="局部自适应区间宽度（见 local_conformal.py）；缺失则退回全局 q")
     ap.add_argument("--ensemble", default=str(ENSEMBLES),
                     help="无序系综文件（优先级最高；提供装饰噪声误差条；见 drx_ensemble.py）")
     ap.add_argument("--tag", default="struct")
@@ -387,6 +393,25 @@ def main(argv=None) -> int:
         "A_comparable",
         np.where(df["structure_from_prototype"], "B_prototype", "C_none"))
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
+    # ---- 局部自适应区间宽度（每候选自己的 90% 半宽） ----
+    loc_widths, loc_info = {}, {}
+    lc_path = Path(args.local_conformal)
+    if lc_path.exists():
+        lc = pd.read_csv(lc_path, encoding="utf-8-sig")
+        col = ("local_q90_calibrated_V" if "local_q90_calibrated_V" in lc.columns
+               else "local_q90_weighted_V")
+        loc_widths = dict(zip(lc["formula"].astype(str), lc[col].astype(float)))
+        try:
+            with open(OUT / "metrics_local_conformal.json", encoding="utf-8") as fh:
+                loc_info = json.load(fh)
+        except Exception:  # noqa: BLE001
+            loc_info = {}
+        print(f"局部自适应区间: {len(loc_widths)} 个候选（列 {col}）")
+    df["voltage_pi90_halfwidth_V"] = [loc_widths.get(f, np.nan) for f in formulas]
+    # 全局 q 兜底（无局部宽度时用常数）
+    glob_q = ((loc_info.get("global_q_V")) if loc_info else None)
+    df["voltage_halfwidth_used_V"] = df["voltage_pi90_halfwidth_V"].fillna(
+        float(glob_q) if glob_q else 0.0)
     # 装饰噪声误差条（仅系综来源的候选有值）
     def _ens(f, key):
         return (ens_stats.get(f) or {}).get(key, np.nan)
@@ -409,6 +434,8 @@ def main(argv=None) -> int:
     df["voltage_V"] = df["cgcnn_voltage_V"].where(df["has_struct_voltage"], df["comp_voltage_V"])
     df["stability_source"] = np.where(df["has_structure"], "CGCNN", "成分模型")
     df["voltage_source"] = np.where(df["has_struct_voltage"], "双塔CGCNN", "成分模型")
+    # 电压保守值：区间下界（电压作为"越高越好"的指标，保守取减法）
+    df["voltage_conservative_V"] = df["voltage_V"] - df["voltage_halfwidth_used_V"]
     # 排名偏离：只在 **A 层（MP 结构）** 内部比 —— B 层原型的预测带多晶型系统偏移，
     # 拿它和成分模型比排名会引入假信号。
     df["rank_struct"] = np.nan
@@ -453,8 +480,14 @@ def main(argv=None) -> int:
                                          .rank(pct=True) * 100)
         df.loc[idx, "pct_capacity"] = (sub["Q_theoretical_mAh_g"]
                                        .rank(pct=True) * 100)
+    for _tier, idx in df.groupby("structure_tier").groups.items():
+        sub = df.loc[idx]
+        df.loc[idx, "pct_voltage"] = (sub["voltage_conservative_V"]
+                                      .rank(pct=True) * 100)
+    df["score_3dim"] = (W_STAB_3D * df["pct_stability"] + W_COND_3D * df["pct_conduction"]
+                        + W_CAP_3D * df["pct_capacity"])
     df["score"] = (W_STAB * df["pct_stability"] + W_COND * df["pct_conduction"]
-                   + W_CAP * df["pct_capacity"])
+                   + W_CAP * df["pct_capacity"] + W_VOLT * df["pct_voltage"])
 
     # ---- 风险标记 ----
     df["flag"] = ""
@@ -509,7 +542,9 @@ def main(argv=None) -> int:
             "gap_conservative_eV",
             "rank_struct", "rank_comp", "rank_shift", "gap_source", "gap_eV",
             "cgcnn_gap_eV", "comp_gap_eV", "gap_diff_eV", "voltage_source", "voltage_V",
-            "Q_theoretical_mAh_g", "score", "flag", "struct_material_id"]
+            "Q_theoretical_mAh_g", "voltage_conservative_V", "voltage_pi90_halfwidth_V",
+            "pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
+            "score", "score_3dim", "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
     fb_csv = OUT / f"cathode_ranking_struct_fallback.csv"
@@ -601,7 +636,23 @@ def main(argv=None) -> int:
             ((df["cgcnn_gap_eV"] <= 0.05) & (df["comp_gap_eV"] > 0.5)).sum()),
         "gap_rank_correlation_struct_vs_comp": (None if len(df) < 4 else round(float(
             df["cgcnn_gap_eV"].corr(df["comp_gap_eV"], method="spearman")), 4)),
-        "weights": {"stability": W_STAB, "conduction": W_COND, "capacity": W_CAP},
+        "weights": {"stability": W_STAB, "conduction": W_COND, "capacity": W_CAP,
+                    "voltage": W_VOLT},
+        "weights_3dim_legacy": {"stability": W_STAB_3D, "conduction": W_COND_3D,
+                                "capacity": W_CAP_3D},
+        "voltage_dimension": {
+            "source": "局部自适应 conformal（已校准）",
+            "n_candidates_with_local_width": int(df["voltage_pi90_halfwidth_V"].notna().sum()),
+            "global_q_V": glob_q,
+            "local_coverage_raw": (loc_info.get("validation", {}) or {}).get("empirical_coverage"),
+            "local_coverage_calibrated": (loc_info.get("validation", {}) or {}).get(
+                "empirical_coverage_calibrated"),
+            "differentiation_max_over_min": (loc_info.get("local_halfwidth_V", {}) or {}).get(
+                "max_over_min"),
+            "note": ("局部自适应区间按特征近邻给出每个候选自己的半宽；实测原始覆盖率 77% "
+                     "(局部可交换假设不成立)，按 1.47× 校准后 88.7% ≈ 名义 90%，"
+                     "同时保留 9.4× 的相对区分度。评分的电压维度用区间下界（保守）。"),
+        },
         "flag_counts": df["flag"].value_counts().to_dict(),
         "top10": df.head(10)[["rank", "name", "formula", "score", "flag"]].to_dict("records"),
         "stability_rank_correlation_struct_vs_comp": None if rho != rho else round(rho, 4),

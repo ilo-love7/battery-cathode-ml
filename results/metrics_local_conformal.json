@@ -1,0 +1,47 @@
+{
+  "alpha": 0.1,
+  "nominal_coverage": 0.9,
+  "k_neighbors": 40,
+  "n_candidates": 40,
+  "global_q_V": 1.0001,
+  "local_halfwidth_V": {
+    "min": 0.1279,
+    "median": 0.4929,
+    "mean": 0.5585,
+    "max": 1.2044,
+    "std": 0.2343,
+    "max_over_min": 9.42
+  },
+  "validation": {
+    "folds": 5,
+    "n_test": 2672,
+    "k_sweep": [
+      {
+        "k": 40,
+        "coverage": 0.7713,
+        "mean_halfwidth_V": 0.6817
+      },
+      {
+        "k": 80,
+        "coverage": 0.7803,
+        "mean_halfwidth_V": 0.6925
+      },
+      {
+        "k": 160,
+        "coverage": 0.7826,
+        "mean_halfwidth_V": 0.7007
+      }
+    ],
+    "k_selected": 160,
+    "empirical_coverage": 0.7713,
+    "nominal_coverage": 0.9,
+    "mean_halfwidth_V": 0.6817,
+    "note": "邻居只从其他折取（不含自身残差）。k 扫描用于在「覆盖率」与「区分度」之间选折中：达标者里取最小 k。",
+    "empirical_coverage_calibrated": 0.887,
+    "calibration_scale": 1.467
+  },
+  "recommended_halfwidth_V": 1.0001,
+  "note": "split conformal 的宽度是全局常数（无法区分候选）；局部自适应按特征近邻给出每个候选自己的半宽，min/max 之比即区分度，直接决定区间能否参与排序。",
+  "recommended_scaling": 1.467,
+  "recommendation_reason": "局部经验覆盖率 0.771 低于名义 0.90，建议把局部半宽按 1.47× 放大到全局 q 量级，以兼顾校准与区分度"
+}

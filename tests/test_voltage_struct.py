@@ -173,7 +173,9 @@ class TestStructDrivenScreening:
         # A 层 = MP 结构 + 同构替换相 + 无序系综代表结构（三者之和必须等于 A 层规模）
         assert (m["n_from_mp_structure"] + m["n_from_polymorph_substitution"]
                 + m.get("n_from_ensemble", 0) == tiers["A_comparable"])
-        assert m["weights"]["stability"] == 0.40
+        # v1.15.0 起为四维权重（稳定性/导电性/容量/电压），总和为 1
+        assert abs(sum(m["weights"].values()) - 1.0) < 1e-9
+        assert m["weights_3dim_legacy"]["stability"] == 0.40
         # 尺度无关的一致性指标必须存在（两套口径不可比绝对值）
         assert "stability_rank_correlation_struct_vs_comp" in m
 
@@ -482,3 +484,48 @@ class TestConservativeScoring:
             assert (ens["cgcnn_ef_eV_atom"]
                     - ens["cgcnn_ef_best_member_eV_atom"]).abs().max() > 0, (
                 "系综候选的点预测应区别于单个 best member")
+
+
+class TestVoltageDimension:
+    """电压维度进评分 + 局部自适应区间（v1.15.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+    LOCAL = ROOT / "results" / "metrics_local_conformal.json"
+
+    def test_weights_include_voltage_and_sum_to_one(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        w = m["weights"]
+        assert "voltage" in w
+        assert abs(sum(w.values()) - 1.0) < 1e-9
+        assert "weights_3dim_legacy" in m          # 旧口径保留供对照
+
+    def test_score_is_weighted_sum_of_four_dimensions(self):
+        if not self.RANKED.exists():
+            pytest.skip("未生成排序表")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        for col in ("pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
+                    "voltage_conservative_V", "score", "score_3dim"):
+            assert col in d.columns
+        w = m["weights"]
+        expect = (w["stability"] * d["pct_stability"] + w["conduction"] * d["pct_conduction"]
+                  + w["capacity"] * d["pct_capacity"] + w["voltage"] * d["pct_voltage"])
+        assert (d["score"] - expect).abs().max() < 1e-6
+        # 保守电压 = 点预测 − 所用半宽
+        delta = d["voltage_V"] - d["voltage_conservative_V"] - d["voltage_halfwidth_used_V"]
+        assert delta.abs().max() < 1e-6
+        # 新旧口径应确实不同（否则说明电压维度没起作用）
+        assert (d["score"] - d["score_3dim"]).abs().max() > 1.0
+
+    def test_local_conformal_is_calibrated_and_differentiated(self):
+        if not self.LOCAL.exists():
+            pytest.skip("未运行局部自适应 conformal")
+        m = json.load(open(self.LOCAL, encoding="utf-8"))
+        v = m["validation"]
+        # 原始局部覆盖率不足（局部可交换假设不成立），校准后才接近名义值
+        assert v["empirical_coverage"] < 0.85
+        assert v.get("empirical_coverage_calibrated", 0) > 0.85
+        assert m["local_halfwidth_V"]["max_over_min"] > 2, "缺少区分度则不值得用局部区间"

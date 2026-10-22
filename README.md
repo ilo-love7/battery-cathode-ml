@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 163 个单元测试（162 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 166 个单元测试（165 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -329,7 +329,15 @@ D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/screening_struct.py
 带隙 **0.1043 eV**（最大 0.2608，**必须作为误差条引用**）。
 导出列：`ef_ens_std_eV_atom`、`gap_ens_std_eV`、`n_decorations`、`ef_ens_mean_eV_atom`。
 
-**评分口径：1σ 保守估计（v1.14.0）** —— 系综候选的稳定性/带隙点预测改用**系综均值**
+**评分（v1.15.0：四维 + 局部自适应区间）** = 0.35×稳定性 + 0.20×导电性 + 0.25×容量 + **0.20×电压**
+（旧三维口径保留为 `score_3dim`）。其中：
+- 稳定性/导电性用 **1σ 保守估计**（见下）；
+- **电压维度用区间下界**（`voltage_V − 局部半宽`），区间宽的候选被降权；
+- 区间宽度来自 `local_conformal.py`：**局部自适应**（特征近邻加权分位数）。
+
+  实测：全局 split conformal q=1.0001 V（**无区分度**）；局部自适应原始覆盖率仅 77.1%（局部可交换假设不成立），×1.47 校准后 **88.70%** ≈ 名义 90%，同时保留 **9.4×** 区分度。
+
+**1σ 口径说明（v1.14.0）** —— 系综候选的稳定性/带隙点预测改用**系综均值**
 （保留 `cgcnn_ef_best_member_eV_atom` 对照），评分用 `mean + σ`（稳定性取更不稳定一侧、
 带隙取更绝缘一侧）；无误差条的候选 σ=0，口径统一。指标里的 `scoring_mode = conservative_1sigma` 即此。
 语义说明：σ 是**结构装饰噪声**；默认导电性评分用实验口径成分带隙时，它是数据质量惩罚，配合 `--prefer-struct-gap` 时即结构带隙的不确定度。
@@ -486,12 +494,13 @@ battery-cathode-ml/
 │   ├── prototype_sensitivity.py # ★ 原型/同构替换相 vs MP 结构预测差异
 │   ├── template_substitution.py # ★ 多晶型枚举 + 同构替换（按 MLIP 能量选相）
 │   ├── drx_ensemble.py          # ★ 无序系综（随机装饰 + 误差条）
+│   ├── local_conformal.py       # ★ 局部自适应区间（每候选自己的半宽）
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 163 个单元测试
+├── tests/                       # 166 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -520,7 +529,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 163 个测试
+pytest tests/ -v                                             # 166 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -558,7 +567,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.14.0}
+  version = {1.15.0}
 }
 ```
 
