@@ -1,0 +1,21 @@
+{
+  "n_compared": 31,
+  "ef": {
+    "MAE_proto_vs_mp_eV_atom": 1.2594,
+    "bias_eV_atom": 1.249,
+    "std_eV_atom": 2.0632,
+    "iqr_eV_atom": 1.2909,
+    "max_abs_eV_atom": 10.4786,
+    "spearman": -0.0536
+  },
+  "gap": {
+    "MAE_proto_vs_mp_eV": 1.1818,
+    "bias_eV": -1.1172,
+    "std_eV": 1.3891,
+    "iqr_eV": 2.3547,
+    "max_abs_eV": 3.64,
+    "spearman": 0.3655
+  },
+  "interpretation": "该差异**不代表弛豫误差**，而是「原型=岩盐型亚稳多晶型」与「MP=该成分的真实基态多晶型」之间的**多晶型能量差**：量级 ~1 eV/atom、且基本是常数偏移，故原型候选**只能做组内相对比较**，不能与 MP 结构候选混排。",
+  "implication_for_screening": "screening_struct.py 因此分三层：A=MP 结构（主排名）、B=原型结构（单列，仅组内可比）、C=无结构（成分回退）。"
+}

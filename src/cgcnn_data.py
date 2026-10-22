@@ -9,7 +9,9 @@ CGCNN（Xie & Grossman, PRL 2018）把晶体表示为图：原子为节点、近
 
 约定
 ----
-- 节点特征：原子序数的 one-hot，维度 ``ATOM_FEAT_DIM = 95``（Z=1..94 + "未知"）；
+- 节点特征：**按占位度加权的原子序数 one-hot**，维度 ``ATOM_FEAT_DIM = 95``（Z=1..94 + "未知"）。
+  有序结构（占位度=1）退化为普通 one-hot，与早期训练完全一致；
+  部分占位的原型结构（如无序岩盐 DRX）则给出混合向量，无需人为凑整化学计量比。
 - 边特征：距离的高斯展开（中心 0..8 Å，步长 0.2 Å → 41 维）；
 - 近邻：周期边界最小镜像距离 ≤ ``cutoff``，每个原子最多取 ``max_neighbors`` 个最近邻，
   每条键按 CGCNN 惯例**双向各存一条**。
@@ -64,23 +66,32 @@ def build_graph(st: dict, cutoff: float = CUTOFF,
         matrix = np.asarray(st["lattice"]["matrix"], dtype=np.float64)
         sites = st["sites"]
         frac = np.asarray([s["abc"] for s in sites], dtype=np.float64)
-        zs = []
+        zis = []          # 每个位点的 [(Z, occu), ...]，支持部分占位
         for s in sites:
-            sp = max(s["species"], key=lambda x: x.get("occu", 1.0))
-            z = sp.get("element")
-            if z is None:
+            pairs = []
+            for sp in s["species"]:
+                el = sp.get("element")
+                if el is None:
+                    return None
+                z = int(el) if isinstance(el, (int, np.integer)) else _Z.get(str(el), 0)
+                if z <= 0:
+                    return None
+                pairs.append((z, float(sp.get("occu", 1.0))))
+            if not pairs:
                 return None
-            zs.append(int(z) if isinstance(z, (int, np.integer)) else _Z.get(str(z), 0))
+            zis.append(pairs)
     except (KeyError, TypeError, ValueError):
         return None
 
     n = len(frac)
-    if n == 0 or matrix.shape != (3, 3) or any(z <= 0 for z in zs):
+    if n == 0 or matrix.shape != (3, 3):
         return None
 
     node_feat = np.zeros((n, ATOM_FEAT_DIM), dtype=np.float32)
-    for i, z in enumerate(zs):
-        node_feat[i, min(z, ATOM_FEAT_DIM) - 1] = 1.0
+    for i, zi in enumerate(zis):
+        total_occ = float(sum(o for _, o in zi)) or 1.0
+        for z, occ in zi:
+            node_feat[i, min(z, ATOM_FEAT_DIM) - 1] += occ / total_occ
 
     dist = _min_image_distances(frac, matrix)
 

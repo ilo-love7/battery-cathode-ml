@@ -111,3 +111,10 @@ data/raw/mp_*.csv
 
 # 双塔电压模型推理用的 demo 电极对（10 个常见正极，含结构+真实电压）
 !data/raw/mp_voltage_pairs_demo.json.gz
+
+# 候选原型结构（v1.11.0）：9 条固溶体/富锂/DRX 的 CHGNet 弛豫原型 + 40 条全量（敏感性分析用）
+!data/raw/mp_structures_candidates_prototype.json.gz
+!data/raw/mp_structures_candidates_prototype_all.json.gz
+# 候选的 MP 结构（31 条）与电极对（20 条），让离线环境能复现结构驱动筛选
+!data/raw/mp_structures_candidates.json.gz
+!data/raw/mp_voltage_pairs_candidates.json.gz

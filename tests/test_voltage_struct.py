@@ -149,35 +149,117 @@ class TestDemoVoltagePairs:
 
 
 class TestStructDrivenScreening:
-    """结构驱动筛选的产物契约（离线检查，不需要 torch）。"""
+    """结构驱动筛选的产物契约（离线检查，不需要 torch）。
+
+    v1.11.0 起候选分三个置信层级：A=MP 弛豫结构（主排名）、B=原型结构（组内可比）、
+    C=无结构（成分回退）。三者互斥且并集=全部候选。
+    """
 
     METRICS = ROOT / "results" / "metrics_screening_struct.json"
     RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+    PROTOTYPE = ROOT / "results" / "cathode_ranking_struct_prototype.csv"
     FALLBACK = ROOT / "results" / "cathode_ranking_struct_fallback.csv"
 
-    def test_metrics_exist_and_account_for_all_candidates(self):
+    def test_metrics_account_for_every_candidate_in_three_tiers(self):
         if not self.METRICS.exists():
             pytest.skip("未生成结构筛选指标")
         m = json.load(open(self.METRICS, encoding="utf-8"))
         assert m["n_candidates"] == 40
-        assert m["n_ranked_with_structure"] + m["n_fallback_without_structure"] == 40
+        tiers = m["structure_tiers"]
+        assert sum(tiers.values()) == 40
+        assert tiers["A_MP_relaxed"] == m["n_ranked_with_structure"]
+        assert tiers["B_prototype_CHGNet"] == m["n_prototype_only"]
+        assert tiers["C_no_structure"] == m["n_fallback_without_structure"]
         assert m["weights"]["stability"] == 0.40
         # 尺度无关的一致性指标必须存在（两套口径不可比绝对值）
         assert "stability_rank_correlation_struct_vs_comp" in m
 
-    def test_main_ranking_only_contains_structured_candidates(self):
-        if not (self.RANKED.exists() and self.FALLBACK.exists()):
+    def test_tier_tables_are_disjoint_and_schema_consistent(self):
+        if not self.RANKED.exists():
             pytest.skip("未生成结构筛选排序表")
         ranked = pd.read_csv(self.RANKED, encoding="utf-8-sig")
-        fallback = pd.read_csv(self.FALLBACK, encoding="utf-8-sig")
-        assert len(ranked) and len(fallback)
-        # 主排名里必须有 CGCNN 结构稳定性；回退表里必须没有
+        assert len(ranked)
+        # A 层：必须都有 MP 结构，且分数降序
         assert ranked["cgcnn_ef_eV_atom"].notna().all()
-        assert fallback["cgcnn_ef_eV_atom"].isna().all()
-        # 两个表不能有重复候选
-        assert not (set(ranked["formula"]) & set(fallback["formula"]))
-        # 主排名按分数降序
+        assert (ranked["structure_origin"] == "MP弛豫").all()
         assert ranked["score"].is_monotonic_decreasing
+
+        sets = [set(ranked["formula"])]
+        if self.PROTOTYPE.exists():
+            proto = pd.read_csv(self.PROTOTYPE, encoding="utf-8-sig")
+            if len(proto):
+                assert proto["cgcnn_ef_eV_atom"].notna().all()
+                assert proto["structure_from_prototype"].all()
+                assert proto["score"].is_monotonic_decreasing
+                sets.append(set(proto["formula"]))
+        if self.FALLBACK.exists():
+            fb = pd.read_csv(self.FALLBACK, encoding="utf-8-sig")
+            if len(fb):
+                assert fb["cgcnn_ef_eV_atom"].isna().all()
+                sets.append(set(fb["formula"]))
+        # 层级之间不得重复
+        for i in range(len(sets)):
+            for j in range(i + 1, len(sets)):
+                assert not (sets[i] & sets[j]), "不同置信层级出现重复候选"
+
+    def test_prototype_tier_reports_extra_uncertainty(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        if m["n_prototype_only"] == 0:
+            pytest.skip("本次没有原型层候选")
+        unc = m["prototype_extra_uncertainty"]
+        assert unc["ef_bias_eV_atom"] is not None
+        assert abs(unc["ef_bias_eV_atom"]) > 0.5, (
+            "若原型与 MP 结构预测几乎无偏差，应重新评估分层必要性")
+
+
+class TestPrototypeStructures:
+    """原型结构生成器（需要 pymatgen；CI 未安装则跳过）。"""
+
+    def test_prototype_is_graph_ready_and_composition_close(self):
+        pytest.importorskip("pymatgen")
+        sys.path.insert(0, str(ROOT / "src"))
+        import generate_prototype_structures as gps
+        from cgcnn_data import build_graph
+
+        st, info = gps.rocksalt_prototype("LiNi0.5Co0.2Mn0.3O2", a=4.1, supercell=2)
+        assert info["decorated"] is True
+        assert info["composition_deviation"] < 0.05      # 整数占位带来的微小计量偏差
+        g = build_graph(st)
+        assert g is not None
+        # 有序整数占位 -> 每位点 one-hot，行和为 1
+        assert np.allclose(g["node_feat"].sum(axis=1), 1.0)
+        assert g["n_atoms"] == info["n_sites"]
+
+    def test_disordered_mode_uses_partial_occupancy(self):
+        pytest.importorskip("pymatgen")
+        sys.path.insert(0, str(ROOT / "src"))
+        import generate_prototype_structures as gps
+        from cgcnn_data import build_graph
+
+        st, info = gps.rocksalt_prototype("Li1.2Mn0.4Ti0.4O2", a=4.1, supercell=1,
+                                         decorated=False)
+        assert info["decorated"] is False
+        assert info["composition_deviation"] == 0.0
+        g = build_graph(st)
+        assert g is not None
+        # 部分占位 -> 加权 one-hot，行和仍为 1，但不再是 0/1 二值
+        sums = g["node_feat"].sum(axis=1)
+        assert np.allclose(sums, 1.0)
+        assert not np.allclose(g["node_feat"], np.round(g["node_feat"]))
+
+    def test_sensitivity_metrics_schema(self):
+        path = ROOT / "results" / "metrics_prototype_sensitivity.json"
+        if not path.exists():
+            pytest.skip("未运行原型敏感性分析")
+        m = json.load(open(path, encoding="utf-8"))
+        assert m["n_compared"] >= 5
+        for key in ("bias_eV_atom", "std_eV_atom", "MAE_proto_vs_mp_eV_atom",
+                    "spearman"):
+            assert key in m["ef"], key
+        # 原型 vs MP 差异应显著（多晶型能量差），否则分层无意义
+        assert abs(m["ef"]["bias_eV_atom"]) > 0.5
 
 
 class TestStructGapModel:

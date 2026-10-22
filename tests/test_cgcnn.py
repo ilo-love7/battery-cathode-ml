@@ -114,7 +114,11 @@ class TestBuildGraph:
         }
         assert build_graph(st) is None
 
-    def test_occupancy_picks_dominant_species(self):
+    def test_partial_occupancy_is_weighted_one_hot(self):
+        """部分占位（无序/固溶体原型）-> 占位度加权的 one-hot 混合向量。
+
+        有序结构（occu=1）会退化为普通 one-hot，因此与早期训练完全兼容。
+        """
         st = {
             "lattice": {"matrix": [[3.5, 0, 0], [0, 3.5, 0], [0, 0, 3.5]]},
             "sites": [
@@ -125,8 +129,16 @@ class TestBuildGraph:
         }
         g = build_graph(st)
         assert g is not None
-        assert g["node_feat"][0, 10] == 1.0     # Na (Z=11) 占主导
-        assert g["node_feat"][0, 2] == 0.0      # Li 未入选
+        assert g["node_feat"][0, 10] == pytest.approx(0.6)    # Na (Z=11)
+        assert g["node_feat"][0, 2] == pytest.approx(0.4)     # Li (Z=3)
+        assert g["node_feat"][0].sum() == pytest.approx(1.0)
+        # 有序位点仍是普通 one-hot
+        assert g["node_feat"][1, 7] == pytest.approx(1.0)     # O (Z=8)
+
+    def test_ordered_structure_is_still_plain_one_hot(self):
+        g = build_graph(_cubic_cell())
+        assert np.allclose(g["node_feat"].sum(axis=1), 1.0)
+        assert set(np.unique(g["node_feat"])) <= {0.0, 1.0}
 
 class TestScriptInterface:
     """训练脚本的 CLI 接口应在没有 torch 的环境里也能被检查（--help 早于 torch 导入）。"""

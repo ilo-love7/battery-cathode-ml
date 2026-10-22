@@ -46,8 +46,12 @@ def temp_results_dir(tmp_path):
 
 
 @pytest.fixture
-def test_element_list():
-    """Test element list for feature extraction."""
+def element_list_fixture():
+    """Test element list for feature extraction.
+
+    注意：fixture **不能**命名为 test_* —— pytest 会把任何 test_* 函数
+    同时当作测试收集（虚增计数），这里用 element_list_fixture 避免该反模式。
+    """
     return ["Li", "Fe", "P", "O", "Co", "Mn", "Ni", "V"]
 
 

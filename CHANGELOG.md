@@ -3,6 +3,49 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.11.0] - 2026-10-21
+
+**核心变化：给 9 个 MP 无结构的候选生成原型结构（含 CHGNet MLIP 弛豫），
+但实测证明「原型 ≠ 真实多晶型」，因此筛选中新增独立置信层级而不是硬并入主排名。**
+
+### 新增
+
+- `src/generate_prototype_structures.py`：为缺失候选生成**岩盐型阳离子原型**
+  - pymatgen 构建，阳离子按目标化学计量比分布；两种模式：
+    - `--decor ordered`（默认）：**整数占位有序超胞**（最大余数法取整 + 固定种子随机分配），
+      成分偏差 0.006–0.019；ASE/CHGNet 只能弛豫有序结构，故默认此模式
+    - `--decor disordered`：**部分占位**（精确计量比，但无法弛豫）
+  - `--relax chgnet`（默认）：用 **CHGNet 通用机器学习势**做 MLIP 弛豫（fmax 0.05、300 步）
+- `src/prototype_sensitivity.py`：量化「原型 vs MP 真实结构」的预测差异
+- `cgcnn_data.build_graph` 支持**占位度加权的节点 one-hot**
+  （有序结构退化为普通 one-hot，已验证旧预测完全不变：LiCoO₂ 仍为 −1.7435 eV/atom）
+- `screening_struct.py` 改为 **A/B/C 三层置信结构**：
+  - **A 层**（31 条）：MP 弛豫结构 → 主排名 `cathode_ranking_struct.csv`
+  - **B 层**（9 条）：原型结构 → 单列 `cathode_ranking_struct_prototype.csv`，**仅组内可比**
+  - **C 层**（0 条）：无结构 → `cathode_ranking_struct_fallback.csv`
+  - 候选结构覆盖率：**31/40 → 40/40**（但分属两个置信层级）
+
+### 关键实测结论（为什么不能直接并入主排名）
+
+在 31 条同时有两种结构的候选上比较 CGCNN 预测：
+
+| 指标 | 偏差 (bias) | MAE | Spearman ρ |
+|---|---|---|---|
+| 每原子形成能 | **+1.2490 eV/atom** | 1.2594 | −0.053 |
+| 带隙 | −1.1172 eV | 1.1818 | 0.365 |
+
+- 该差异**不是弛豫误差**：晶胞常数扫描 3.80→4.20 Å 偏差都停在 ≈1.1 eV/atom
+  （未弛豫原型 +1.10、CHGNet 弛豫后 +1.25，几乎没变）；
+- 真正原因是**多晶型能量差**：原型是岩盐型**亚稳**多晶型，MP 给的是该成分的**基态**多晶型
+  （如 LiCoO₂ 的层状相）；
+- 因此原型候选只能**组内相对比较**，与 A 层混排会产生系统性偏差 → 分层的依据即此。
+
+### 变更
+
+- `.gitignore` 放行候选结构/电极对/原型文件，离线可复现结构驱动筛选
+- 测试 146 → **151**（原型生成器、部分占位语义、敏感性 schema、三层产物契约；另修正 `tests/conftest.py` 中名为 `test_element_list` 的 fixture 反模式）
+- 版本 1.10.0 → 1.11.0
+
 ## [1.10.0] - 2026-10-21
 
 **核心变化：训练了结构版带隙模型（CGCNN on MP band_gap），并得到一个重要的负面结论。**

@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 146 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选产物契约与结构带隙模型契约
+- 151 个单元测试，含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -285,22 +285,41 @@ CPU 结构描述符（0.193 eV/胞）之上，项目内置了一个**自包含�
 
 
 
-### 6. 结构模型驱动的候选筛选（v1.9.0，需 GPU 环境）
+### 6. 结构模型驱动的候选筛选（v1.11.0，需 GPU 环境）
 
 `screening_struct.py` 把稳定性从「成分模型（matbench 钙钛矿口径）」换成**CGCNN（MP 含 Li 域，每原子形成能）**，电压优先用**双塔 CGCNN**：
 
 ```powershell
 python src/fetch_mp_structures.py --mode formulas --formulas "<40 候选>" --out data/raw/mp_structures_candidates.json.gz
 python src/fetch_mp_structures.py --mode pairs --formulas "<40 候选>" --out data/raw/mp_voltage_pairs_candidates.json.gz
+# v1.11.0：给 MP 无结构的 9 条生成原型（pymatgen + CHGNet MLIP 弛豫）
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/generate_prototype_structures.py
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/generate_prototype_structures.py --all --out data/raw/mp_structures_candidates_prototype_all.json.gz
+D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/prototype_sensitivity.py       # 量化原型 vs MP 差异
 D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/screening_struct.py
 ```
 
-覆盖率：结构 **31/40**、电极对 20/40。
-**主排名只收录有结构的候选**（31 条），无结构的 9 条（NCA/NMC523/NMC622/富锂/DRX）
-单列 `cathode_ranking_struct_fallback.csv`，因为两套形成能口径不可比（详见 CHANGELOG）。
-结构 vs 成分稳定性的 Spearman ρ = **0.7462**（尺度无关的一致性指标）。
+**候选结构覆盖率 40/40，但分属两个置信层级**（跨层不可混排）：
 
-Top 5：LiMn₀.₈Fe₀.₂PO₄(74.8) > Li₂MnSiO₄(73.3) > LiMnPO₄(73.0) > LiMn₀.₆Fe₀.₄PO₄(73.0) > LiV₃O₈(71.8)
+| 层级 | 数量 | 结构来源 | 产物 |
+|---|---|---|---|
+| **A** | 31 | MP 弛豫结构 | `cathode_ranking_struct.csv`（主排名） |
+| **B** | 9 | 岩盐型原型（CHGNet 弛豫） | `cathode_ranking_struct_prototype.csv`（**仅组内可比**） |
+| **C** | 0 | 无结构（成分回退） | `cathode_ranking_struct_fallback.csv` |
+
+**为什么 B 层不能并入主排名**：实测（`prototype_sensitivity.py`，31 条同成分对比）
+
+| 指标 | bias | MAE | ρ |
+|---|---|---|---|
+| 每原子形成能 | **+1.249 eV/atom** | 1.259 | −0.05 |
+| 带隙 | −1.117 eV | 1.182 | 0.37 |
+
+该差异**不是弛豫误差**（晶胞常数 3.80→4.20 Å 扫描、以及 CHGNet 弛豫前后，偏差都停在 ≈1.1–1.25 eV/atom），
+而是**多晶型能量差**：原型是岩盐型**亚稳**相，MP 给的是**基态**相（如 LiCoO₂ 的层状相）。
+
+电极对覆盖 20/40；结构 vs 成分稳定性的 Spearman ρ = **0.7462**（尺度无关的一致性指标）。
+
+Top 5（A 层）：LiMn₀.₈Fe₀.₂PO₄(74.8) > Li₂MnSiO₄(73.3) > LiMnPO₄(73.0) > LiMn₀.₆Fe₀.₄PO₄(73.0) > LiV₃O₈(71.8)
 
 ### 4.1 MP 域 CGCNN 与推理 CLI（v1.6.0）
 
@@ -443,13 +462,15 @@ battery-cathode-ml/
 │   ├── voltage_from_cgcnn.py    # ★ CGCNN-ΔE 物理路径（负面结果对照）
 │   ├── predict_voltage_cgcnn.py # ★ 双塔 CGCNN 电压推理 CLI（两相结构 -> 电压）
 │   ├── screening.py             # 候选筛选排序（成分模型）
-│   ├── screening_struct.py      # ★ 结构模型驱动的候选筛选（CGCNN + 双塔电压）
+│   ├── screening_struct.py      # ★ 结构模型驱动的候选筛选（CGCNN + 双塔电压，A/B/C 三层）
+│   ├── generate_prototype_structures.py  # ★ 缺失候选的岩盐型原型 + CHGNet MLIP 弛豫
+│   ├── prototype_sensitivity.py # ★ 原型 vs MP 结构预测差异（多晶型能量差）
 │   ├── predictor.py             # 预测 / 筛选 CLI
 │   ├── generate_voltage_data.py # 合成电压数据
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 146 个单元测试
+├── tests/                       # 151 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -477,7 +498,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 146 个测试
+pytest tests/ -v                                             # 151 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -515,7 +536,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.10.0}
+  version = {1.11.0}
 }
 ```
 

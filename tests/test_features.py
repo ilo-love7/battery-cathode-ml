@@ -28,10 +28,10 @@ class TestFeatureExtraction:
         assert features["n_elements"] == 4
         assert features["atoms_per_fu"] == 7
 
-    def test_element_fraction_features(self, test_element_list):
+    def test_element_fraction_features(self, element_list_fixture):
         """Test element fraction feature extraction."""
         formula = "LiFePO4"
-        features = featurize_one(formula, element_list=test_element_list)
+        features = featurize_one(formula, element_list=element_list_fixture)
         
         assert features is not None
         assert "frac_Li" in features
