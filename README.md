@@ -4,10 +4,10 @@
 
 **A three-task toolkit that also reports where its own numbers fail**
 
-![voltage](https://img.shields.io/badge/voltage%20MAE-0.353%20V%20(two--tower%20CGCNN)-brightgreen)
+![voltage](https://img.shields.io/badge/voltage%20MAE-0.352%20V%20(two--tower%20CGCNN)-brightgreen)
 ![formation energy](https://img.shields.io/badge/formation%20energy-0.0401%20eV%2Fcell-brightgreen)
 ![structure coverage](https://img.shields.io/badge/structure%20coverage-40%2F40-blue)
-![tests](https://img.shields.io/badge/tests-198%20(197%20pass%20%2B%201%20skip)-orange)
+![tests](https://img.shields.io/badge/tests-200%20(199%20pass%20%2B%201%20skip)-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
