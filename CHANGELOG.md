@@ -3,6 +3,25 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.23.1] - 2026-10-21
+
+### 修复（v1.23.0 的 CI 回归）
+
+- v1.23.0 把校验指标分轨到 `metrics_voltage_pairs_validation.json` 后**删掉了该文件**，
+  导致 `TestVoltagePairConstruction::test_construction_residual_is_reported` 找不到校验数据而失败
+  —— **本地与干净副本都红**，是一个真实的 CI 回归。
+- 修复：① 重新生成并入库 `results/metrics_voltage_pairs_validation.json`（n=15，MAE 0.3468 V）；
+  ② 测试改为**兼容两个来源**（主指标 `metrics_voltage_pairs.json` 或独立的 `*_validation` 文件），
+  只要其中之一存在即可，但**必须存在**（不允许静默跳过校验）。
+
+### 教训
+
+"把指标分轨"这个修复本身是对的，但**分轨后忘了把新文件纳入版本控制/测试可见范围**，
+就又制造了一个新问题 —— 与 v1.22.1（构造产物未入库导致 CI 静默 skip）是**同一类错误**：
+**改文件布局时，必须同步检查 .gitignore、测试可见性与 CI 覆盖**。
+
+- 版本 1.23.0 → 1.23.1
+
 ## [1.23.0] - 2026-10-21
 
 **多晶型/构型枚举：把「构造两相约 0.35 V 残差」追到根因，结论是枚举改不了它。**

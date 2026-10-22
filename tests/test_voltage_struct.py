@@ -931,9 +931,13 @@ class TestVoltagePairConstruction:
                 assert r["n_charge_atoms"] < len(r["structure_discharge"]["sites"])
 
     def test_construction_residual_is_reported(self):
-        if not self.METRICS.exists():
-            pytest.skip("未运行构造流程")
-        m = json.load(open(self.METRICS, encoding="utf-8"))
+        # 校验指标既可能在主指标里（全量流程自带），也可能在独立的 *_validation 文件里
+        # （--validate-only 运行产出）——两者取其一即可，但必须存在
+        cands = [self.METRICS, self.METRICS.with_name(
+            self.METRICS.stem + "_validation" + self.METRICS.suffix)]
+        m = next((json.load(open(p, encoding="utf-8")) for p in cands if p.exists()), None)
+        if m is None:
+            pytest.skip("未运行构造/校验流程")
         v = m.get("validation")
         assert v and v["n"] >= 10, "必须给出构造法 vs MP 真电极对的对照"
         # 残差量级必须写清（本项目实测 ~0.35 V，与模型误差同量级）
