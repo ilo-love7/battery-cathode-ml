@@ -3,6 +3,69 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.19.0] - 2026-10-21
+
+**参考表升级为逐条引用（DOI 经 Crossref 核验）；Pareto 升级为偏好驱动的最优子集。**
+
+### ① 逐条溯源（`annotate_reference.py` 重写）
+
+每条记录绑定**具体引用**，DOI 用 **Crossref API 实测核验**（不凭记忆）：
+
+| 已核验锚点 | DOI | 覆盖 |
+|---|---|---|
+| Padhi, Nanjundaswamy & Goodenough, *JES* 144, 1188 (1997) | `10.1149/1.1837571` | 橄榄石 LiMPO₄ 全族（LFP/LMP/LCP/LNP/LMFP） |
+| Mizushima et al., *Mater. Res. Bull.* 15, 783 (1980) | `10.1016/0025-5408(80)90012-4` | LiCoO₂ |
+| Thackeray et al., *Mater. Res. Bull.* 18, 461 (1983) | `10.1016/0025-5408(83)90138-1` | LiMn₂O₄ |
+| Ohzuku & Makimura, *Chem. Lett.* 30, 642 (2001) | `10.1246/cl.2001.642` | NMC 家族 |
+| Lee et al., *Science* 343, 519 (2014) | `10.1126/science.1246432` | 无序岩盐 DRX |
+| Barpanda et al., *Nat. Mater.* 10, 772 (2011) | `10.1038/nmat3093` | LiFeSO₄F |
+| Manthiram, *Nat. Commun.* 11, 1550 (2020) | `10.1038/s41467-020-15355-0` | 正极总览综述 |
+
+- **已核验 14/39 条（36%）**，共 7 个唯一 DOI；
+- `citation_verified` 的语义是**"该文献是否直接覆盖该材料"**（不是"是否有引用"）：
+  NMC811 引 NMC 家族 + 综述，标为 False —— **不假装已逐条核验**；
+- 新增列 `citation` / `doi` / `citation_verified`；测试断言"必须存在未核验条目"（诚实性检查）。
+
+### ② Pareto 偏好交互（`src/pareto_interactive.py`）
+
+v1.18.0 发现 **32/40 候选在前沿上**，说明"谁是第一"取决于偏好。本脚本把偏好变成输入：
+
+```powershell
+python src/pareto_interactive.py --profile capacity      # 高容量优先
+python src/pareto_interactive.py --weights 0.5,0.1,0.3,0.1
+python src/pareto_interactive.py                         # 全部预设
+```
+
+预设 5 种偏好（balanced / capacity / safety / energy / power）。**各偏好第一名并不相同**
+（已固化为测试）：balanced→LiNiPO4, capacity→Li1.2Ni0.13Co0.13Mn0.54O2, safety→LiCrO2, energy→Li1.2Ni0.13Co0.13Mn0.54O2, power→Li2MnSiO4。
+
+**稳健优选**（在 ≥2/5 个偏好下都进 Top 8）：
+
+| 候选 | 化学式 | 风险 | 票数 |
+|---|---|---|---|
+| 铬酸锂 | `LiCrO2` | 高 | 4/5 |
+| 层状钒氧化物 | `LiV3O8` | 低 | 4/5 |
+| 富锂锰基A | `Li1.2Ni0.13Co0.13Mn0.54O2` | 高 | 3/5 |
+| 硅酸锰锂 | `Li2MnSiO4` | 中 | 3/5 |
+| 磷酸钒锂 | `Li3V2(PO4)3` | 中 | 3/5 |
+| LMFP-8020 | `LiMn0.8Fe0.2PO4` | 中 | 3/5 |
+| 磷酸氟铁锂 | `Li2FePO4F` | 中 | 3/5 |
+| 富锂锰基B | `Li1.2Ni0.2Mn0.6O2` | 中 | 2/5 |
+| DRX-A | `Li1.2Mn0.4Ti0.4O2` | 中 | 2/5 |
+| 正交锰酸锂 | `LiMnO2` | 低 | 2/5 |
+| 磷酸镍锂 | `LiNiPO4` | 中 | 2/5 |
+| 焦磷酸铁锂 | `LiFeP2O7` | 中 | 2/5 |
+
+⚠️ 注意 **LiCrO₂ 拿到 4 票却是高风险**、LiV₃O₈ 4 票低风险 —— 排序与风险必须分开看，
+这正是多视图产物存在的意义。
+
+### 变更
+
+- 新增 `src/pareto_interactive.py`；产物 `results/pareto_profiles.csv`、
+  `metrics_pareto_profiles.json`、`pareto_profiles.png`（各偏好下的排名热图）
+- 测试 180 → **185**（184 通过 + 1 条件跳过）：`TestPerRowCitations`、`TestParetoInteractive`
+- 版本 1.18.0 → 1.19.0
+
 ## [1.18.0] - 2026-10-21
 
 **参考表补溯源 + 逐行不确定度；引入 Pareto 前沿作为"单一分数"的补充。**

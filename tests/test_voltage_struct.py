@@ -727,3 +727,66 @@ class TestProvenanceAndPareto:
         m = json.load(open(self.METRICS, encoding="utf-8"))
         assert sum(m["pareto"]["rank_counts"].values()) == len(d)
         assert m["pareto"]["n_front"] == len(front)
+
+
+class TestPerRowCitations:
+    """逐条溯源：引用 + DOI + 是否核验（v1.19.0）。"""
+
+    REF = ROOT / "data" / "reference_cathodes.csv"
+
+    def test_columns_present_and_consistent(self):
+        d = pd.read_csv(self.REF, encoding="utf-8-sig")
+        for col in ("citation", "doi", "citation_verified"):
+            assert col in d.columns, col
+            assert d[col].notna().all(), col
+        # 语义：citation_verified=True 表示"该文献直接覆盖该材料"；
+        # False 表示只引用了家族/综述文献（仍带 DOI，但不宣称已逐条核验）。
+        ver = d[d["citation_verified"]]
+        assert len(ver) >= 10, "已核验条目过少"
+        assert (ver["doi"].astype(str).str.len() > 0).all()
+        # 必须存在明确标注为"未核验"的条目（诚实性检查：不允许全部标成已核验）
+        assert int((~d["citation_verified"]).sum()) > 0
+        assert d["citation"].str.len().gt(0).all()
+
+    def test_dois_are_well_formed_and_unique(self):
+        d = pd.read_csv(self.REF, encoding="utf-8-sig")
+        dois = [x for x in d["doi"].astype(str) if x]
+        assert len(set(dois)) >= 5
+        for doi in set(dois):
+            assert doi.startswith("10."), doi
+            assert "/" in doi, doi
+
+
+class TestParetoInteractive:
+    """偏好驱动的最优子集（v1.19.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_pareto_profiles.json"
+    CSV = ROOT / "results" / "pareto_profiles.csv"
+
+    def test_profiles_and_scores_present(self):
+        if not (self.METRICS.exists() and self.CSV.exists()):
+            pytest.skip("未运行偏好分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["n_profiles"] >= 4
+        assert m["objectives"] == ["stability", "conduction", "capacity", "voltage"]
+        d = pd.read_csv(self.CSV, encoding="utf-8-sig")
+        for name in m["profiles"]:
+            assert f"score_{name}" in d.columns and f"rank_{name}" in d.columns
+            w = m["profiles"][name]["weights"]
+            assert abs(sum(w.values()) - 1.0) < 1e-6
+
+    def test_preference_actually_changes_the_answer(self):
+        """若所有偏好给出同一个第一名，则"偏好交互"毫无意义。"""
+        if not self.METRICS.exists():
+            pytest.skip("未运行偏好分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        firsts = {name: v["top"][0]["formula"] for name, v in m["profiles"].items()}
+        assert len(set(firsts.values())) >= 2, f"所有偏好同解: {firsts}"
+
+    def test_robust_picks_definition(self):
+        if not self.METRICS.exists():
+            pytest.skip("未运行偏好分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        half = max(2, m["n_profiles"] // 2)
+        for r in m["robust_picks"]:
+            assert r["profile_votes"] >= half

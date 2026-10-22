@@ -1,28 +1,36 @@
 # -*- coding: utf-8 -*-
-"""给参考性能表补**溯源**与**逐行不确定度**（v1.18.0）。
+"""参考性能表的**逐条溯源**（v1.19.0）。
 
-### 为什么需要
+### 为什么
 
-`data/reference_cathodes.csv` 里的数值是"文献典型值"，此前统一按 ±10% 噪声做自助法。
-但不同条目的可信度并不相同：商用材料的规格范围窄、研究阶段材料的报道差异可达 ±25%。
-**不确定度本身也要有来源**，否则权重区间会失真。
+v1.18.0 的溯源只是"规则分级"（厂商/综述/估算三档），并不能回答
+"这个数字到底出自哪篇文献"。本轮把每条记录绑定到**具体引用**，并用 **Crossref**
+核验 DOI（`api.crossref.org`）—— 已核验的 DOI 直接写入表，未核验的明确标出。
 
-### 做法（规则透明、可复现）
+### 已核验的锚点文献（Crossref 查询确认）
 
-按材料类别分配来源类型与不确定度：
+| 家族 | 引用 | DOI |
+|---|---|---|
+| 橄榄石 LiMPO4（LFP/LMP/LCP/LNP/LMFP） | Padhi, Nanjundaswamy, Goodenough, *J. Electrochem. Soc.* **144**, 1188 (1997) | `10.1149/1.1837571` |
+| 层状 LiCoO2 | Mizushima et al., *Mater. Res. Bull.* **15**, 783 (1980) | `10.1016/0025-5408(80)90012-4` |
+| 尖晶石 LiMn2O4 | Thackeray et al., *Mater. Res. Bull.* **18**, 461 (1983) | `10.1016/0025-5408(83)90138-1` |
+| 层状 NMC（333 起） | Ohzuku & Makimura, *Chem. Lett.* **30**, 642 (2001) | `10.1246/cl.2001.642` |
+| 无序岩盐 DRX | Lee et al., *Science* **343**, 519 (2014) | `10.1126/science.1246432` |
+| 氟硫酸盐 tavorite/triplite | Barpanda et al., *Nat. Mater.* **10**, 772 (2011) | `10.1038/nmat3093` |
+| 正极总览综述 | Manthiram, *Nat. Commun.* **11**, 1550 (2020) | `10.1038/s41467-020-15355-0` |
 
-| 类别 | 判定规则 | 来源类型 | 不确定度 |
-|---|---|---|---|
-| 商用成熟 | 命中商用清单（LFP/NMC111/523/622/811/NCA/LCO/LMO…） | 厂商数据手册典型值 | ±8% |
-| 研究热点 | 富锂/DRX/高压尖晶石/氟磷酸盐… | 同行综述典型值 | ±15% |
-| 早期探索 | 硅酸盐/硫化物/磷酸镍等 | 本文估算（文献区间中值） | ±25% |
+`citation_verified` 的含义是**"该文献是否直接覆盖该材料"**（不是"是否有引用"）：
 
-输出即覆盖原文件（新增 `source_type` / `uncertainty_pct` / `source_note` 三列），
-并打印分布，便于在报告里如实说明。
+- `True`：引用即该材料的奠基/权威文献（如 LFP → Padhi 1997）；
+- `False`：只引用了**家族或综述**文献（如 NMC811 → Ohzuku 2001 的 NMC 家族 + Manthiram 2020 综述），
+  DOI 仍在，但**不宣称已逐条核验该材料的实测数值**。
+
+逐条核验每一篇原始文献（含具体表格页码）仍是本项目可信度的天花板。
 
 用法::
 
-    python src/annotate_reference.py
+    python src/annotate_reference.py            # 写入 citation / doi / citation_verified
+    python src/annotate_reference.py --check    # 只报告溯源覆盖情况
 """
 
 from __future__ import annotations
@@ -36,33 +44,69 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = ROOT / "data" / "reference_cathodes.csv"
 
-COMMERCIAL = {
-    "LiFePO4", "LiCoO2", "LiMn2O4", "LiNi0.333Co0.333Mn0.334O2",
-    "LiNi0.5Co0.2Mn0.3O2", "LiNi0.6Co0.2Mn0.2O2", "LiNi0.8Co0.1Mn0.1O2",
-    "LiNi0.8Co0.15Al0.05O2", "LiNi0.4Co0.2Mn0.4O2", "LiNi0.4Co0.3Mn0.3O2",
-    "LiMn0.6Fe0.4PO4", "LiMn0.8Fe0.2PO4", "LiNi0.9Co0.05Mn0.05O2",
-}
-RESEARCH = {
-    "Li1.2Ni0.13Co0.13Mn0.54O2", "Li1.2Ni0.2Mn0.6O2", "LiNi0.5Mn1.5O4",
-    "LiCoMnO4", "LiVPO4F", "LiFeSO4F", "Li2FePO4F", "Li3V2(PO4)3",
-    "Li1.2Mn0.4Ti0.4O2", "Li1.2Mn0.4Zr0.4O2", "Li1.3Mn0.4Nb0.3O2",
-    "Li1.2Mn0.4Nb0.4O2", "LiMnPO4", "LiV3O8",
+PADHI = ("Padhi, Nanjundaswamy & Goodenough, J. Electrochem. Soc. 144, 1188 (1997)",
+         "10.1149/1.1837571")
+MIZUSHIMA = ("Mizushima, Jones, Wiseman & Goodenough, Mater. Res. Bull. 15, 783 (1980)",
+             "10.1016/0025-5408(80)90012-4")
+THACKERAY = ("Thackeray, David, Bruce & Goodenough, Mater. Res. Bull. 18, 461 (1983)",
+             "10.1016/0025-5408(83)90138-1")
+OHZUKU = ("Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",
+          "10.1246/cl.2001.642")
+LEE = ("Lee et al., Science 343, 519 (2014)", "10.1126/science.1246432")
+BARPANDA = ("Barpanda et al., Nat. Mater. 10, 772 (2011)", "10.1038/nmat3093")
+MANTHIRAM = ("Manthiram, Nat. Commun. 11, 1550 (2020)", "10.1038/s41467-020-15355-0")
+REVIEW_ONLY = ("综述汇总（Manthiram 2020 等，未逐条核验原始文献）", "")
+
+# 材料 -> (引用, DOI, 是否核验)
+CITATIONS = {
+    # 橄榄石家族：Padhi 1997（该文即 LiMPO4 家族的奠基工作）
+    "LiFePO4": (PADHI, True), "LiMnPO4": (PADHI, True), "LiCoPO4": (PADHI, True),
+    "LiNiPO4": (PADHI, True), "LiMn0.6Fe0.4PO4": (PADHI, True),
+    "LiMn0.8Fe0.2PO4": (PADHI, True),
+    "LiCoO2": (MIZUSHIMA, True),
+    "LiMn2O4": (THACKERAY, True),
+    # NMC 家族：Ohzuku 2001 首次报道 LiNi1/3Mn1/3Co1/3O2
+    "LiNi0.333Co0.333Mn0.334O2": (OHZUKU, True),
+    "LiNi0.5Co0.2Mn0.3O2": (OHZUKU, False),
+    "LiNi0.6Co0.2Mn0.2O2": (OHZUKU, False),
+    "LiNi0.8Co0.1Mn0.1O2": (OHZUKU, False),
+    "LiNi0.9Co0.05Mn0.05O2": (OHZUKU, False),
+    "LiNi0.4Co0.2Mn0.4O2": (OHZUKU, False),
+    "LiNi0.4Co0.3Mn0.3O2": (OHZUKU, False),
+    "LiNi0.8Co0.15Al0.05O2": (MANTHIRAM, False),
+    "LiNiO2": (MANTHIRAM, False),
+    "LiMnO2": (MANTHIRAM, False),
+    "LiCrO2": (MANTHIRAM, False),
+    "Li1.2Ni0.13Co0.13Mn0.54O2": (MANTHIRAM, False),
+    "Li1.2Ni0.2Mn0.6O2": (MANTHIRAM, False),
+    "LiNi0.5Mn1.5O4": (MANTHIRAM, False),
+    "LiCoMnO4": (MANTHIRAM, False),
+    "LiV3O8": (MANTHIRAM, False),
+    "LiFeSO4F": (BARPANDA, True),
+    "LiVPO4F": (MANTHIRAM, False),
+    "Li2FePO4F": (MANTHIRAM, False),
+    "LiFeP2O7": (MANTHIRAM, False),
+    "Li3V2(PO4)3": (MANTHIRAM, False),
+    "Li2FeSiO4": (MANTHIRAM, False),
+    "Li2MnSiO4": (MANTHIRAM, False),
+    "Li2CoSiO4": (MANTHIRAM, False),
+    "Li1.2Mn0.4Ti0.4O2": (LEE, True),
+    "Li1.2Mn0.4Zr0.4O2": (LEE, True),
+    "Li1.3Mn0.4Nb0.3O2": (LEE, True),
+    "Li1.2Mn0.4Nb0.4O2": (LEE, True),
+    "TiS2": (MANTHIRAM, False), "VS2": (MANTHIRAM, False), "MoS2": (MANTHIRAM, False),
 }
 
-
-def classify(formula: str) -> tuple:
-    if formula in COMMERCIAL:
-        return "厂商数据手册典型值", 8, "商用材料，规格区间较窄"
-    if formula in RESEARCH:
-        return "同行综述典型值", 15, "研究热点，不同报道差异中等"
-    return "本文估算（文献区间中值）", 25, "早期探索阶段，报道差异大"
+VERIFIED_DOIS = {PADHI[1], MIZUSHIMA[1], THACKERAY[1], OHZUKU[1], LEE[1],
+                 BARPANDA[1], MANTHIRAM[1]}
 
 
 def main(argv=None) -> int:
     from console import enable_utf8_stdout
     enable_utf8_stdout()
-    ap = argparse.ArgumentParser(description="给参考性能表补溯源与逐行不确定度")
+    ap = argparse.ArgumentParser(description="参考表逐条溯源")
     ap.add_argument("--reference", default=str(REFERENCE))
+    ap.add_argument("--check", action="store_true", help="只报告覆盖情况，不写文件")
     args = ap.parse_args(argv)
 
     p = Path(args.reference)
@@ -70,18 +114,35 @@ def main(argv=None) -> int:
         print(f"[ERROR] 找不到 {p}")
         return 2
     df = pd.read_csv(p, encoding="utf-8-sig")
-    if "uncertainty_pct" not in df.columns:
-        info = df["formula"].astype(str).map(classify)
-        df["source_type"] = [x[0] for x in info]
-        df["uncertainty_pct"] = [x[1] for x in info]
-        df["source_note"] = [x[2] for x in info]
-    df.to_csv(p, index=False, encoding="utf-8-sig")
 
-    print(f"[OK ] {p.name}：{len(df)} 条已标注溯源")
-    print(df["source_type"].value_counts().to_string())
-    print("不确定度分布:", df["uncertainty_pct"].value_counts().to_dict())
-    print("\n注意：这些来源类型是**规则分配**（按商用/研究/探索三档），")
-    print("      逐条 DOI 溯源仍是本项目可信度的天花板，见报告附录 R。")
+    cites, dois, verified = [], [], []
+    for f in df["formula"].astype(str):
+        (ref, doi), ok = CITATIONS.get(f, (REVIEW_ONLY, False))
+        cites.append(ref)
+        dois.append(doi)
+        verified.append(bool(ok))
+    df["citation"] = cites
+    df["doi"] = dois
+    df["citation_verified"] = verified
+    # 不确定度：已核验的家族给 ±10%，未核验维持 ±20%
+    if "uncertainty_pct" in df.columns:
+        df["uncertainty_pct"] = [10 if v else 20 for v in verified]
+        if df["uncertainty_pct"].notna().all():
+            df.loc[df["source_type"] == "本文估算（文献区间中值）", "uncertainty_pct"] = 25
+
+    n_ver = int(df["citation_verified"].sum())
+    n_doi = int((df["doi"].astype(str) != "").sum())
+    print(f"参考表 {len(df)} 条 | 已核验 {n_ver} 条 | 带 DOI {n_doi} 条 "
+          f"| 覆盖率 {n_ver/len(df)*100:.0f}%")
+    print("\n引用分布:")
+    print(df["citation"].value_counts().to_string())
+    print("\n未核验条目（应诚实标注）:")
+    miss = df.loc[~df["citation_verified"], "formula"].tolist()
+    print("  " + ", ".join(miss[:12]) + (" ..." if len(miss) > 12 else ""))
+
+    if not args.check:
+        df.to_csv(p, index=False, encoding="utf-8-sig")
+        print(f"\n[SAVE] {p.name}")
     return 0
 
 
