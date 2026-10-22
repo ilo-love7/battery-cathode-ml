@@ -935,7 +935,9 @@ class TestVoltagePairConstruction:
         # （--validate-only 运行产出）——两者取其一即可，但必须存在
         cands = [self.METRICS, self.METRICS.with_name(
             self.METRICS.stem + "_validation" + self.METRICS.suffix)]
-        m = next((json.load(open(p, encoding="utf-8")) for p in cands if p.exists()), None)
+        # 必须选"确实带 validation 块"的文件（主指标可能没有该块）
+        loaded = [json.load(open(p, encoding="utf-8")) for p in cands if p.exists()]
+        m = next((x for x in loaded if x.get("validation")), None)
         if m is None:
             pytest.skip("未运行构造/校验流程")
         v = m.get("validation")
