@@ -63,6 +63,7 @@ PROTOTYPES = ROOT / "data" / "raw" / "mp_structures_candidates_prototype.json.gz
 POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz"
 ENSEMBLES = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
 LOCAL_CONFORMAL = ROOT / "results" / "local_conformal_voltage.csv"
+WEIGHTS_JSON = ROOT / "results" / "metrics_weights_calibration.json"
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
 CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
 GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
@@ -250,6 +251,10 @@ def main(argv=None) -> int:
                     help="岩盐型原型文件（最后手段；见 generate_prototype_structures.py）")
     ap.add_argument("--polymorphs", default=str(POLYMORPHS),
                     help="同构替换相文件（优先级高于岩盐原型；见 template_substitution.py）")
+    ap.add_argument("--weights-from", default=str(WEIGHTS_JSON),
+                    help="校准后的评分权重（见 calibrate_weights.py）；缺失或 --prior-weights 时用先验")
+    ap.add_argument("--prior-weights", action="store_true",
+                    help="强制使用先验权重 0.35/0.20/0.25/0.20")
     ap.add_argument("--local-conformal", default=str(LOCAL_CONFORMAL),
                     help="局部自适应区间宽度（见 local_conformal.py）；缺失则退回全局 q")
     ap.add_argument("--ensemble", default=str(ENSEMBLES),
@@ -357,6 +362,32 @@ def main(argv=None) -> int:
         print(f"电极对命中（结构电压）: {len(cg_v)}/{len(formulas)}")
     else:
         print("[INFO] 无电极对文件或已禁用双塔模型 → 电压全部来自成分模型")
+
+    # ---- 评分权重：优先用校准结果（calibrate_weights.py），否则先验 ----
+    w_stab, w_cond, w_cap, w_volt = W_STAB, W_COND, W_CAP, W_VOLT
+    weights_source, weights_meta = "prior", {}
+    wj = Path(args.weights_from)
+    if wj.exists() and not args.prior_weights:
+        try:
+            with open(wj, encoding="utf-8") as fh:
+                cal = json.load(fh)
+            bw = cal.get("best_weights") or {}
+            if {"stability", "conduction", "capacity", "voltage"} <= set(bw):
+                w_stab, w_cond = float(bw["stability"]), float(bw["conduction"])
+                w_cap, w_volt = float(bw["capacity"]), float(bw["voltage"])
+                weights_source = "calibrated"
+                weights_meta = {"rho_calibrated": cal.get("best_rho"),
+                                "rho_prior": cal.get("prior_rho"),
+                                "n_aligned": cal.get("n_aligned"),
+                                "constraints": cal.get("constraints")}
+                print(f"评分权重（校准）: 稳定性 {w_stab:.2f} / 导电性 {w_cond:.2f} / "
+                      f"容量 {w_cap:.2f} / 电压 {w_volt:.2f} "
+                      f"（ρ vs 实测比能量 {cal.get('best_rho')}，先验 ρ {cal.get('prior_rho')}）")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] 读取校准权重失败，退回先验: {exc}")
+    if weights_source == "prior":
+        print(f"评分权重（先验）: 稳定性 {w_stab:.2f} / 导电性 {w_cond:.2f} / "
+              f"容量 {w_cap:.2f} / 电压 {w_volt:.2f}")
 
     comp = _composition_predictions(formulas)
     df = cand.merge(comp, on="formula", how="left")
@@ -468,6 +499,8 @@ def main(argv=None) -> int:
     df["gap_sigma_eV"] = df["gap_ens_std_eV"].fillna(0.0)
     df["stability_conservative_eV_atom"] = df["stability_eV_atom"] + df["ef_sigma_eV_atom"]
     df["gap_conservative_eV"] = df["gap_eV"] + df["gap_sigma_eV"]
+    # 能量密度联合口径（在百分位循环之前算好，供 pct_energy 使用）
+    df["energy_density_Wh_kg"] = df["voltage_conservative_V"] * df["Q_theoretical_mAh_g"]
 
     # ---- 评分（**层内百分位**：跨层不可比，故每层各自归一化；用 1σ 保守量） ----
     for col in ("pct_stability", "pct_conduction", "pct_capacity"):
@@ -484,10 +517,14 @@ def main(argv=None) -> int:
         sub = df.loc[idx]
         df.loc[idx, "pct_voltage"] = (sub["voltage_conservative_V"]
                                       .rank(pct=True) * 100)
+        df.loc[idx, "pct_energy"] = (sub["energy_density_Wh_kg"]
+                                     .rank(pct=True) * 100)
     df["score_3dim"] = (W_STAB_3D * df["pct_stability"] + W_COND_3D * df["pct_conduction"]
                         + W_CAP_3D * df["pct_capacity"])
-    df["score"] = (W_STAB * df["pct_stability"] + W_COND * df["pct_conduction"]
-                   + W_CAP * df["pct_capacity"] + W_VOLT * df["pct_voltage"])
+    df["score"] = (w_stab * df["pct_stability"] + w_cond * df["pct_conduction"]
+                   + w_cap * df["pct_capacity"] + w_volt * df["pct_voltage"])
+    df["score_energy"] = (w_stab * df["pct_stability"] + w_cond * df["pct_conduction"]
+                          + (w_cap + w_volt) * df["pct_energy"])
 
     # ---- 风险标记 ----
     df["flag"] = ""
@@ -544,7 +581,8 @@ def main(argv=None) -> int:
             "cgcnn_gap_eV", "comp_gap_eV", "gap_diff_eV", "voltage_source", "voltage_V",
             "Q_theoretical_mAh_g", "voltage_conservative_V", "voltage_pi90_halfwidth_V",
             "pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
-            "score", "score_3dim", "flag", "struct_material_id"]
+            "energy_density_Wh_kg", "pct_energy", "score", "score_energy",
+            "score_3dim", "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
     fb_csv = OUT / f"cathode_ranking_struct_fallback.csv"
@@ -636,8 +674,19 @@ def main(argv=None) -> int:
             ((df["cgcnn_gap_eV"] <= 0.05) & (df["comp_gap_eV"] > 0.5)).sum()),
         "gap_rank_correlation_struct_vs_comp": (None if len(df) < 4 else round(float(
             df["cgcnn_gap_eV"].corr(df["comp_gap_eV"], method="spearman")), 4)),
-        "weights": {"stability": W_STAB, "conduction": W_COND, "capacity": W_CAP,
-                    "voltage": W_VOLT},
+        "weights": {"stability": w_stab, "conduction": w_cond, "capacity": w_cap,
+                    "voltage": w_volt},
+        "weights_source": weights_source,
+        "weights_calibration_meta": weights_meta,
+        "energy_density": {
+            "definition": "voltage_conservative_V × Q_theoretical_mAh_g（Wh/kg）",
+            "median_Wh_kg": (None if df["energy_density_Wh_kg"].dropna().empty else
+                             round(float(df["energy_density_Wh_kg"].median()), 1)),
+            "note": ("联合口径把电压与容量合成一个物理量（能量密度）；"
+                     "实测校准显示：容量维度单独与实测比能量 ρ≈0.65，"
+                     "而模型电压维度 ρ≈-0.02 —— 电压的排序信息目前不可用，"
+                     "故 score 保留四维、score_energy 仅作对照。"),
+        },
         "weights_3dim_legacy": {"stability": W_STAB_3D, "conduction": W_COND_3D,
                                 "capacity": W_CAP_3D},
         "voltage_dimension": {

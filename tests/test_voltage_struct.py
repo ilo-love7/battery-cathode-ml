@@ -529,3 +529,74 @@ class TestVoltageDimension:
         assert v["empirical_coverage"] < 0.85
         assert v.get("empirical_coverage_calibrated", 0) > 0.85
         assert m["local_halfwidth_V"]["max_over_min"] > 2, "缺少区分度则不值得用局部区间"
+
+
+class TestWeightCalibration:
+    """权重校准：用文献实测比能量给权重找依据（v1.16.0）。"""
+
+    CAL = ROOT / "results" / "metrics_weights_calibration.json"
+    REF = ROOT / "data" / "reference_cathodes.csv"
+    SCREEN = ROOT / "results" / "metrics_screening_struct.json"
+
+    def test_reference_table_is_plausible(self):
+        ref = pd.read_csv(self.REF, encoding="utf-8-sig")
+        assert len(ref) >= 20
+        assert {"formula", "voltage_practical_V", "capacity_practical_mAh_g"} <= set(ref.columns)
+        assert ref["voltage_practical_V"].between(1.5, 5.5).all()
+        assert ref["capacity_practical_mAh_g"].between(50, 400).all()
+        assert ref["formula"].is_unique
+
+    def test_calibration_beats_prior(self):
+        if not self.CAL.exists():
+            pytest.skip("未运行权重校准")
+        m = json.load(open(self.CAL, encoding="utf-8"))
+        assert m["n_aligned"] >= 20
+        w = m["best_weights"]
+        assert abs(sum(w.values()) - 1.0) < 1e-9
+        c = m["constraints"]
+        assert w["stability"] >= c["min_stability"] - 1e-9
+        assert w["conduction"] >= c["min_conduction"] - 1e-9
+        assert w["voltage"] >= c["min_voltage"] - 1e-9
+        assert w["capacity"] <= c["max_capacity"] + 1e-9
+        # 校准的核心目的：排序一致性优于先验（本项目实测先验为负相关）
+        assert m["best_rho"] > m["prior_rho"]
+
+    def test_screening_records_weights_source(self):
+        if not self.SCREEN.exists():
+            pytest.skip("未生成筛选指标")
+        m = json.load(open(self.SCREEN, encoding="utf-8"))
+        assert m["weights_source"] in {"calibrated", "prior"}
+        assert abs(sum(m["weights"].values()) - 1.0) < 1e-9
+        assert "energy_density" in m
+        assert m["energy_density"]["median_Wh_kg"] > 100
+
+
+class TestConditionalCoverage:
+    """条件覆盖率：只报边际覆盖率会掩盖分层失效（v1.16.0）。"""
+
+    LOCAL = ROOT / "results" / "metrics_local_conformal.json"
+
+    def test_family_level_coverage_reported(self):
+        if not self.LOCAL.exists():
+            pytest.skip("未运行局部自适应 conformal")
+        m = json.load(open(self.LOCAL, encoding="utf-8"))
+        fam = m.get("coverage_by_family") or {}
+        assert len(fam) >= 2, "至少要有两个体系族的条件覆盖率"
+        for name, v in fam.items():
+            assert v["n_test"] > 0
+            for key in ("global_q_coverage", "local_raw_coverage",
+                        "local_calibrated_coverage", "mean_local_halfwidth_V"):
+                assert key in v, (name, key)
+                assert 0.0 <= v[key] <= 1.0 or key == "mean_local_halfwidth_V"
+
+    def test_calibration_fixes_worst_family(self):
+        """校准应把最差族拉回名义值附近（这是局部区间可用的关键证据）。"""
+        if not self.LOCAL.exists():
+            pytest.skip("未运行局部自适应 conformal")
+        fam = json.load(open(self.LOCAL, encoding="utf-8")).get("coverage_by_family") or {}
+        if not fam:
+            pytest.skip("无条件覆盖率数据")
+        worst_global = min(v["global_q_coverage"] for v in fam.values())
+        worst_cal = min(v["local_calibrated_coverage"] for v in fam.values())
+        assert worst_cal > worst_global, (
+            "若校准后最差族反而不如全局 q，则没有理由使用局部区间")

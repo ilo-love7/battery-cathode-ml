@@ -40,6 +40,48 @@
     "empirical_coverage_calibrated": 0.887,
     "calibration_scale": 1.467
   },
+  "coverage_by_family": {
+    "含氟": {
+      "n_train": 563,
+      "n_test": 563,
+      "global_q_coverage": 0.9076,
+      "local_raw_coverage": 0.7655,
+      "local_calibrated_coverage": 0.881,
+      "mean_local_halfwidth_V": 0.6559
+    },
+    "氧化物": {
+      "n_train": 755,
+      "n_test": 755,
+      "global_q_coverage": 0.8874,
+      "local_raw_coverage": 0.7881,
+      "local_calibrated_coverage": 0.9007,
+      "mean_local_halfwidth_V": 0.7225
+    },
+    "硫化物": {
+      "n_train": 317,
+      "n_test": 317,
+      "global_q_coverage": 0.8707,
+      "local_raw_coverage": 0.7508,
+      "local_calibrated_coverage": 0.877,
+      "mean_local_halfwidth_V": 0.7571
+    },
+    "磷酸盐": {
+      "n_train": 97,
+      "n_test": 97,
+      "global_q_coverage": 0.8351,
+      "local_raw_coverage": 0.7423,
+      "local_calibrated_coverage": 0.9175,
+      "mean_local_halfwidth_V": 0.8087
+    },
+    "磷酸盐/聚阴离子": {
+      "n_train": 927,
+      "n_test": 927,
+      "global_q_coverage": 0.9213,
+      "local_raw_coverage": 0.7702,
+      "local_calibrated_coverage": 0.8781,
+      "mean_local_halfwidth_V": 0.623
+    }
+  },
   "recommended_halfwidth_V": 1.0001,
   "note": "split conformal 的宽度是全局常数（无法区分候选）；局部自适应按特征近邻给出每个候选自己的半宽，min/max 之比即区分度，直接决定区间能否参与排序。",
   "recommended_scaling": 1.467,

@@ -1,0 +1,112 @@
+{
+  "n_reference": 39,
+  "n_aligned": 39,
+  "target": "specific_energy_Wh_kg = V_practical × Q_practical",
+  "single_dimension_rho": {
+    "pct_stability": -0.2184,
+    "pct_conduction": -0.4128,
+    "pct_capacity": 0.6451,
+    "pct_voltage": -0.0172
+  },
+  "prior_weights": {
+    "stability": 0.35,
+    "conduction": 0.2,
+    "capacity": 0.25,
+    "voltage": 0.2
+  },
+  "prior_rho": -0.1434,
+  "best_weights": {
+    "stability": 0.2,
+    "conduction": 0.1,
+    "capacity": 0.5,
+    "voltage": 0.2
+  },
+  "best_rho": 0.5444,
+  "improvement_over_prior": 0.6878,
+  "constraints": {
+    "min_stability": 0.2,
+    "min_conduction": 0.1,
+    "min_voltage": 0.1,
+    "max_capacity": 0.5
+  },
+  "energy_density_variant_rho": -0.0855,
+  "four_dimension_rho_recomputed": -0.1434,
+  "top10_weight_sets": [
+    {
+      "stability": 0.2,
+      "conduction": 0.1,
+      "capacity": 0.5,
+      "voltage": 0.2,
+      "spearman_rho": 0.5444
+    },
+    {
+      "stability": 0.2,
+      "conduction": 0.15,
+      "capacity": 0.5,
+      "voltage": 0.15,
+      "spearman_rho": 0.521
+    },
+    {
+      "stability": 0.25,
+      "conduction": 0.1,
+      "capacity": 0.5,
+      "voltage": 0.15,
+      "spearman_rho": 0.503
+    },
+    {
+      "stability": 0.2,
+      "conduction": 0.2,
+      "capacity": 0.5,
+      "voltage": 0.1,
+      "spearman_rho": 0.4878
+    },
+    {
+      "stability": 0.25,
+      "conduction": 0.15,
+      "capacity": 0.5,
+      "voltage": 0.1,
+      "spearman_rho": 0.4799
+    },
+    {
+      "stability": 0.2,
+      "conduction": 0.1,
+      "capacity": 0.45,
+      "voltage": 0.25,
+      "spearman_rho": 0.4695
+    },
+    {
+      "stability": 0.3,
+      "conduction": 0.1,
+      "capacity": 0.5,
+      "voltage": 0.1,
+      "spearman_rho": 0.4519
+    },
+    {
+      "stability": 0.2,
+      "conduction": 0.15,
+      "capacity": 0.45,
+      "voltage": 0.2,
+      "spearman_rho": 0.4317
+    },
+    {
+      "stability": 0.25,
+      "conduction": 0.1,
+      "capacity": 0.45,
+      "voltage": 0.2,
+      "spearman_rho": 0.4194
+    },
+    {
+      "stability": 0.25,
+      "conduction": 0.15,
+      "capacity": 0.45,
+      "voltage": 0.15,
+      "spearman_rho": 0.3977
+    }
+  ],
+  "caveats": [
+    "参考表是文献典型值，同一材料不同报道可差 ±10%，权重应读作合理区间",
+    "实测比能量只覆盖 36 条候选中的一部分（对齐 39 条），且未含循环寿命/倍率/成本",
+    "ρ 是排序一致性，不等于绝对性能预测精度"
+  ],
+  "note": "校准只用于把权重从「先验」变成「有依据」；screening_struct.py 会读取本文件的 best_weights 作为评分权重（可用 --prior-weights 强制使用先验）。"
+}

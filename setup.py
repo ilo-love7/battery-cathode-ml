@@ -55,6 +55,7 @@ PY_MODULES = [
     "template_substitution",
     "drx_ensemble",
     "local_conformal",
+    "calibrate_weights",
     "structure_features",
     "train_capacity",
     "train_cgcnn",
@@ -73,7 +74,7 @@ PY_MODULES = [
 
 setup(
     name="battery-cathode-ml",
-    version="1.15.0",
+    version="1.16.0",
     author="Battery Cathode ML Contributors",
     author_email="17695324ilo@gmail.com",
     description="Machine learning toolkit for battery cathode material property prediction",

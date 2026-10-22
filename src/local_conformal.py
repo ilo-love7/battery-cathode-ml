@@ -202,12 +202,66 @@ def main(argv=None) -> int:
               f"{validation['empirical_coverage']*100:.2f}% (名义 {validation['nominal_coverage']*100:.0f}%) "
               f"| 平均半宽 {validation['mean_halfwidth_V']:.4f} V")
 
-    out = pd.DataFrame(rows)
     global_q = None
     if Path(CONFORMAL_JSON).exists():
         with open(CONFORMAL_JSON, encoding="utf-8") as f:
             _g = json.load(f)
         global_q = _g.get("q_halfwidth", _g.get("q"))     # split conformal 的常数半宽
+
+    # ---- 条件覆盖率：按体系族分层（只报边际覆盖率会掩盖分层失效） ----
+    def family(f: str) -> str:
+        if "S" in f and not f.startswith("Li2FeSi"):
+            return "硫化物" if "P" not in f else "磷酸盐"
+        if "P" in f:
+            return "磷酸盐/聚阴离子"
+        if "Si" in f:
+            return "硅酸盐"
+        if "F" in f:
+            return "含氟"
+        return "氧化物"
+
+    fam_train = np.array([family(f) for f in train_formulas])
+    coverage_by_family = {}
+    if args.validate_folds and args.validate_folds > 1 and validation is not None:
+        scale = validation.get("calibration_scale", 1.0)
+        for fam in sorted(set(fam_train)):
+            mask_f = fam_train == fam
+            if mask_f.sum() < 30:
+                continue
+            cov_g, cov_l, cov_c, w_l = [], [], [], []
+            for f in range(args.validate_folds):
+                pool = np.where(fold != f)[0]
+                test = np.where((fold == f) & mask_f)[0]
+                for i in test:
+                    d_all = np.linalg.norm(Ztr[pool] - Ztr[i], axis=1)
+                    kk = min(k, len(pool))
+                    idx = pool[np.argpartition(d_all, kk - 1)[:kk]]
+                    w = 1.0 / (np.linalg.norm(Ztr[idx] - Ztr[i], axis=1) + 1e-6)
+                    sc = resid[idx]
+                    order = np.argsort(sc)
+                    cum = np.cumsum(w[order]) / w[order].sum()
+                    q_loc = float(np.interp(1 - args.alpha, cum, sc[order]))
+                    q_glob = float(global_q) if global_q else q_loc
+                    w_l.append(q_loc)
+                    cov_g.append(resid[i] <= q_glob)
+                    cov_l.append(resid[i] <= q_loc)
+                    cov_c.append(resid[i] <= q_loc * scale)
+            coverage_by_family[fam] = {
+                "n_train": int(mask_f.sum()),
+                "n_test": int(len(cov_g)),
+                "global_q_coverage": round(float(np.mean(cov_g)), 4),
+                "local_raw_coverage": round(float(np.mean(cov_l)), 4),
+                "local_calibrated_coverage": round(float(np.mean(cov_c)), 4),
+                "mean_local_halfwidth_V": round(float(np.mean(w_l)), 4),
+            }
+        if coverage_by_family:
+            print("\n[条件覆盖率] 按体系族：")
+            for fam, v in coverage_by_family.items():
+                print(f"  {fam:14s} n={v['n_test']:4d} | 全局 {v['global_q_coverage']*100:5.1f}% "
+                      f"| 局部原始 {v['local_raw_coverage']*100:5.1f}% "
+                      f"| 局部校准 {v['local_calibrated_coverage']*100:5.1f}%")
+
+    out = pd.DataFrame(rows)
 
     widths = out["local_q90_weighted_V"].to_numpy(dtype=float)
     metrics = {
@@ -225,6 +279,7 @@ def main(argv=None) -> int:
             "max_over_min": round(float(widths.max() / max(widths.min(), 1e-9)), 2),
         },
         "validation": validation,
+        "coverage_by_family": coverage_by_family,
         "recommended_halfwidth_V": None,
         "note": ("split conformal 的宽度是全局常数（无法区分候选）；"
                  "局部自适应按特征近邻给出每个候选自己的半宽，"

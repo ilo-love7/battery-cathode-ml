@@ -38,10 +38,27 @@
   "gap_metal_disagreement_count": 5,
   "gap_rank_correlation_struct_vs_comp": -0.5304,
   "weights": {
-    "stability": 0.35,
-    "conduction": 0.2,
-    "capacity": 0.25,
+    "stability": 0.2,
+    "conduction": 0.1,
+    "capacity": 0.5,
     "voltage": 0.2
+  },
+  "weights_source": "calibrated",
+  "weights_calibration_meta": {
+    "rho_calibrated": 0.5444,
+    "rho_prior": -0.1434,
+    "n_aligned": 39,
+    "constraints": {
+      "min_stability": 0.2,
+      "min_conduction": 0.1,
+      "min_voltage": 0.1,
+      "max_capacity": 0.5
+    }
+  },
+  "energy_density": {
+    "definition": "voltage_conservative_V × Q_theoretical_mAh_g（Wh/kg）",
+    "median_Wh_kg": 530.8,
+    "note": "联合口径把电压与容量合成一个物理量（能量密度）；实测校准显示：容量维度单独与实测比能量 ρ≈0.65，而模型电压维度 ρ≈-0.02 —— 电压的排序信息目前不可用，故 score 保留四维、score_energy 仅作对照。"
   },
   "weights_3dim_legacy": {
     "stability": 0.4,
@@ -61,92 +78,92 @@
     "带隙≤0(金属/外推);带隙结构/成分差异大;": 7,
     "结构&成分一致": 6,
     "电压成分回退;": 6,
-    "带隙结构/成分差异大;": 3,
     "电压成分回退;评分用系综均值(已含1σ保守惩罚);": 3,
-    "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;": 2,
+    "带隙结构/成分差异大;": 3,
     "结构/成分排名偏离大;": 2,
     "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);": 2,
     "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);": 2,
+    "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;": 2,
     "结构判金属/成分判半导体(PBE低估);电压成分回退;": 2,
     "结构判金属/成分判半导体(PBE低估);电压成分回退;评分用系综均值(已含1σ保守惩罚);": 1,
     "带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);": 1,
     "带隙结构/成分差异大;电压成分回退;": 1,
-    "结构判金属/成分判半导体(PBE低估);": 1,
-    "带隙结构/成分差异大;结构判金属/成分判半导体(PBE低估);": 1
+    "带隙结构/成分差异大;结构判金属/成分判半导体(PBE低估);": 1,
+    "结构判金属/成分判半导体(PBE低估);": 1
   },
   "top10": [
     {
       "rank": 1,
-      "name": "硅酸锰锂",
-      "formula": "Li2MnSiO4",
-      "score": 73.75,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;"
-    },
-    {
-      "rank": 2,
-      "name": "LMFP-8020",
-      "formula": "LiMn0.8Fe0.2PO4",
-      "score": 71.375,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
-    },
-    {
-      "rank": 3,
-      "name": "磷酸氟铁锂",
-      "formula": "Li2FePO4F",
-      "score": 69.625,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;"
-    },
-    {
-      "rank": 4,
-      "name": "磷酸钒锂",
-      "formula": "Li3V2(PO4)3",
-      "score": 69.375,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;"
-    },
-    {
-      "rank": 5,
-      "name": "LMFP",
-      "formula": "LiMn0.6Fe0.4PO4",
-      "score": 68.5,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
-    },
-    {
-      "rank": 6,
-      "name": "焦磷酸铁锂",
-      "formula": "LiFeP2O7",
-      "score": 65.75,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;"
-    },
-    {
-      "rank": 7,
       "name": "铬酸锂",
       "formula": "LiCrO2",
-      "score": 65.625,
+      "score": 75.25,
       "flag": "结构/成分排名偏离大;"
     },
     {
-      "rank": 8,
-      "name": "磷酸锰锂",
-      "formula": "LiMnPO4",
+      "rank": 2,
+      "name": "富锂锰基A",
+      "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
+      "score": 70.0,
+      "flag": "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+    },
+    {
+      "rank": 3,
+      "name": "富锂锰基B",
+      "formula": "Li1.2Ni0.2Mn0.6O2",
+      "score": 69.75,
+      "flag": "结构判金属/成分判半导体(PBE低估);电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+    },
+    {
+      "rank": 4,
+      "name": "正交锰酸锂",
+      "formula": "LiMnO2",
+      "score": 65.75,
+      "flag": "结构&成分一致"
+    },
+    {
+      "rank": 5,
+      "name": "DRX-B",
+      "formula": "Li1.2Mn0.4Zr0.4O2",
+      "score": 65.25,
+      "flag": "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+    },
+    {
+      "rank": 6,
+      "name": "层状钒氧化物",
+      "formula": "LiV3O8",
       "score": 64.75,
-      "flag": "带隙结构/成分差异大;"
+      "flag": "结构&成分一致"
+    },
+    {
+      "rank": 7,
+      "name": "DRX-A",
+      "formula": "Li1.2Mn0.4Ti0.4O2",
+      "score": 64.5,
+      "flag": "带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+    },
+    {
+      "rank": 8,
+      "name": "DRX-D",
+      "formula": "Li1.2Mn0.4Nb0.4O2",
+      "score": 61.75,
+      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 9,
-      "name": "磷酸镍锂",
-      "formula": "LiNiPO4",
-      "score": 63.75,
-      "flag": "带隙结构/成分差异大;"
+      "name": "LMFP-8020",
+      "formula": "LiMn0.8Fe0.2PO4",
+      "score": 60.25,
+      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
     },
     {
       "rank": 10,
-      "name": "层状钒氧化物",
-      "formula": "LiV3O8",
-      "score": 61.0,
-      "flag": "结构&成分一致"
+      "name": "DRX-C",
+      "formula": "Li1.3Mn0.4Nb0.3O2",
+      "score": 59.0,
+      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     }
   ],
-  "stability_rank_correlation_struct_vs_comp": 0.4467,
+  "stability_rank_correlation_struct_vs_comp": 0.4469,
   "gap_scoring_source": "成分模型(实验口径)",
   "note": "**主排名（A 层）只收录有 MP 弛豫结构的候选**：稳定性来自 CGCNN（MP 含 Li 域，每原子形成能）。成分模型的 e_form 是 matbench 5 原子胞口径（正负号与 MP 都不同），两者不可混排，故无结构候选单列于 *_fallback.csv（C 层）。A 层除 MP 结构外，还包含**同构替换 + CHGNet 选相**补出的结构：实测其与 MP 真实结构的 CGCNN 预测 bias +0.09 eV/atom、ρ 0.97，与模型自身误差同量级，故可同层比较。另有 B 层（岩盐型原型）单列，因其与真实多晶型差 +1.25 eV/atom，**仅组内可比**。电压优先双塔 CGCNN（需电极对），否则回退成分电压模型；导电性默认用实验口径的成分带隙（CGCNN 结构带隙在 Li 体系与实验口径排序负相关 ρ≈-0.57，PBE 系统性低估，仅作交叉检查列），可用 --prefer-struct-gap 切换为结构口径。",
   "caveats": [
