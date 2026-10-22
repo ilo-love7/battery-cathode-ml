@@ -1,5 +1,5 @@
 {
-  "n_candidates": 40,
+  "n_candidates": 20,
   "n_profiles": 5,
   "objectives": [
     "stability",
@@ -31,25 +31,11 @@
           "score": 58.75
         },
         {
-          "name": "焦磷酸铁锂",
-          "formula": "LiFeP2O7",
-          "risk_level": "中",
-          "pareto_rank": 1.0,
-          "score": 43.5
-        },
-        {
           "name": "磷酸氟铁锂",
           "formula": "Li2FePO4F",
           "risk_level": "中",
           "pareto_rank": 1.0,
           "score": 49.5
-        },
-        {
-          "name": "磷酸钒锂",
-          "formula": "Li3V2(PO4)3",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 48.75
         },
         {
           "name": "铬酸锂",
@@ -59,18 +45,32 @@
           "score": 72.5
         },
         {
-          "name": "层状钒氧化物",
-          "formula": "LiV3O8",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 68.0
-        },
-        {
           "name": "LMFP-8020",
           "formula": "LiMn0.8Fe0.2PO4",
           "risk_level": "中",
           "pareto_rank": 1.0,
           "score": 62.25
+        },
+        {
+          "name": "LMFP",
+          "formula": "LiMn0.6Fe0.4PO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 59.25
+        },
+        {
+          "name": "正交锰酸锂",
+          "formula": "LiMnO2",
+          "risk_level": "低",
+          "pareto_rank": 1.0,
+          "score": 66.5
+        },
+        {
+          "name": "磷酸锰锂",
+          "formula": "LiMnPO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 60.5
         }
       ],
       "n_pareto_in_top": 8
@@ -83,13 +83,6 @@
         "voltage": 0.15
       },
       "top": [
-        {
-          "name": "富锂锰基A",
-          "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 70.0
-        },
         {
           "name": "富锂锰基B",
           "formula": "Li1.2Ni0.2Mn0.6O2",
@@ -119,11 +112,11 @@
           "score": 72.5
         },
         {
-          "name": "正交锰酸锂",
-          "formula": "LiMnO2",
-          "risk_level": "低",
+          "name": "DRX-B",
+          "formula": "Li1.2Mn0.4Zr0.4O2",
+          "risk_level": "高",
           "pareto_rank": 1.0,
-          "score": 66.5
+          "score": 74.5
         },
         {
           "name": "DRX-D",
@@ -133,11 +126,18 @@
           "score": 69.5
         },
         {
-          "name": "层状钒氧化物",
-          "formula": "LiV3O8",
+          "name": "正交锰酸锂",
+          "formula": "LiMnO2",
+          "risk_level": "低",
+          "pareto_rank": 1.0,
+          "score": 66.5
+        },
+        {
+          "name": "镍酸锂",
+          "formula": "LiNiO2",
           "risk_level": "高",
           "pareto_rank": 1.0,
-          "score": 68.0
+          "score": 45.0
         }
       ],
       "n_pareto_in_top": 7
@@ -165,18 +165,11 @@
           "score": 58.75
         },
         {
-          "name": "磷酸钒锂",
-          "formula": "Li3V2(PO4)3",
+          "name": "DRX-B",
+          "formula": "Li1.2Mn0.4Zr0.4O2",
           "risk_level": "高",
           "pareto_rank": 1.0,
-          "score": 48.75
-        },
-        {
-          "name": "富锂锰基A",
-          "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 70.0
+          "score": 74.5
         },
         {
           "name": "磷酸氟铁锂",
@@ -193,18 +186,25 @@
           "score": 62.25
         },
         {
-          "name": "DRX-B",
-          "formula": "Li1.2Mn0.4Zr0.4O2",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 74.5
-        },
-        {
           "name": "磷酸锰锂",
           "formula": "LiMnPO4",
           "risk_level": "中",
           "pareto_rank": 1.0,
           "score": 60.5
+        },
+        {
+          "name": "DRX-D",
+          "formula": "Li1.2Mn0.4Nb0.4O2",
+          "risk_level": "高",
+          "pareto_rank": 1.0,
+          "score": 69.5
+        },
+        {
+          "name": "LMFP",
+          "formula": "LiMn0.6Fe0.4PO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 59.25
         }
       ],
       "n_pareto_in_top": 8
@@ -217,13 +217,6 @@
         "voltage": 0.3
       },
       "top": [
-        {
-          "name": "富锂锰基A",
-          "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 70.0
-        },
         {
           "name": "富锂锰基B",
           "formula": "Li1.2Ni0.2Mn0.6O2",
@@ -253,28 +246,35 @@
           "score": 66.5
         },
         {
-          "name": "钴酸锂",
-          "formula": "LiCoO2",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 50.0
-        },
-        {
-          "name": "层状钒氧化物",
-          "formula": "LiV3O8",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 68.0
-        },
-        {
           "name": "磷酸镍锂",
           "formula": "LiNiPO4",
           "risk_level": "中",
           "pareto_rank": 1.0,
           "score": 52.5
+        },
+        {
+          "name": "镍酸锂",
+          "formula": "LiNiO2",
+          "risk_level": "高",
+          "pareto_rank": 1.0,
+          "score": 45.0
+        },
+        {
+          "name": "硅酸锰锂",
+          "formula": "Li2MnSiO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 58.75
+        },
+        {
+          "name": "DRX-C",
+          "formula": "Li1.3Mn0.4Nb0.3O2",
+          "risk_level": "高",
+          "pareto_rank": 2.0,
+          "score": 62.5
         }
       ],
-      "n_pareto_in_top": 8
+      "n_pareto_in_top": 7
     },
     "power": {
       "weights": {
@@ -292,13 +292,6 @@
           "score": 58.75
         },
         {
-          "name": "磷酸钒锂",
-          "formula": "Li3V2(PO4)3",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 48.75
-        },
-        {
           "name": "磷酸氟铁锂",
           "formula": "Li2FePO4F",
           "risk_level": "中",
@@ -313,13 +306,6 @@
           "score": 46.25
         },
         {
-          "name": "层状钒氧化物",
-          "formula": "LiV3O8",
-          "risk_level": "高",
-          "pareto_rank": 1.0,
-          "score": 68.0
-        },
-        {
           "name": "LMFP",
           "formula": "LiMn0.6Fe0.4PO4",
           "risk_level": "中",
@@ -327,24 +313,80 @@
           "score": 59.25
         },
         {
-          "name": "焦磷酸铁锂",
-          "formula": "LiFeP2O7",
-          "risk_level": "中",
-          "pareto_rank": 1.0,
-          "score": 43.5
-        },
-        {
           "name": "LMFP-8020",
           "formula": "LiMn0.8Fe0.2PO4",
           "risk_level": "中",
           "pareto_rank": 1.0,
           "score": 62.25
+        },
+        {
+          "name": "磷酸铁锂",
+          "formula": "LiFePO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 52.75
+        },
+        {
+          "name": "磷酸锰锂",
+          "formula": "LiMnPO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 60.5
+        },
+        {
+          "name": "磷酸镍锂",
+          "formula": "LiNiPO4",
+          "risk_level": "中",
+          "pareto_rank": 1.0,
+          "score": 52.5
         }
       ],
       "n_pareto_in_top": 8
     }
   },
   "note": "Pareto 前沿上有 32/40 候选（v1.18.0），因此单一权重排名是任意的；本脚本把偏好作为输入，输出该偏好下的最优子集。各偏好共同入选的候选可视为「稳健优选」。",
+  "constraints": {
+    "mode": "default",
+    "thresholds": {
+      "max_cobalt_frac": 0.1,
+      "max_toxicity": 2,
+      "max_voltage": 4.5,
+      "max_resource_risk": 45.0,
+      "min_capacity": 120.0
+    },
+    "n_before": 40,
+    "n_after": 20,
+    "excluded_by": {
+      "Co 含量超限": 5,
+      "毒性超限": 18,
+      "电压超电解液窗口": 2,
+      "供应风险超限": 0,
+      "容量不足": 1
+    },
+    "survivors": [
+      "Li1.2Mn0.4Zr0.4O2",
+      "LiCrO2",
+      "Li1.2Mn0.4Nb0.4O2",
+      "Li1.2Ni0.2Mn0.6O2",
+      "Li1.2Mn0.4Ti0.4O2",
+      "LiMnO2",
+      "Li1.3Mn0.4Nb0.3O2",
+      "LiMn0.8Fe0.2PO4",
+      "LiMnPO4",
+      "LiMn0.6Fe0.4PO4",
+      "Li2MnSiO4",
+      "LiFePO4",
+      "LiNiPO4",
+      "Li2FePO4F",
+      "Li2FeSiO4",
+      "LiNiO2",
+      "LiFeSO4F",
+      "LiMn2O4",
+      "TiS2",
+      "MoS2"
+    ],
+    "note": "硬约束直接排除不可行解（不做加权），这是对「前沿膨胀」的回应：六目标下 34/40 都在前沿上，必须先用地板约束剔掉不可执行的方案，再用偏好在前沿内排序。"
+  },
   "robust_picks": [
     {
       "name": "铬酸锂",
@@ -353,27 +395,21 @@
       "profile_votes": 4
     },
     {
-      "name": "层状钒氧化物",
-      "formula": "LiV3O8",
-      "risk_level": "高",
+      "name": "硅酸锰锂",
+      "formula": "Li2MnSiO4",
+      "risk_level": "中",
       "profile_votes": 4
     },
     {
-      "name": "富锂锰基A",
-      "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
-      "risk_level": "高",
-      "profile_votes": 3
-    },
-    {
-      "name": "硅酸锰锂",
-      "formula": "Li2MnSiO4",
+      "name": "磷酸锰锂",
+      "formula": "LiMnPO4",
       "risk_level": "中",
       "profile_votes": 3
     },
     {
-      "name": "磷酸钒锂",
-      "formula": "Li3V2(PO4)3",
-      "risk_level": "高",
+      "name": "LMFP",
+      "formula": "LiMn0.6Fe0.4PO4",
+      "risk_level": "中",
       "profile_votes": 3
     },
     {
@@ -383,15 +419,33 @@
       "profile_votes": 3
     },
     {
+      "name": "正交锰酸锂",
+      "formula": "LiMnO2",
+      "risk_level": "低",
+      "profile_votes": 3
+    },
+    {
       "name": "磷酸氟铁锂",
       "formula": "Li2FePO4F",
       "risk_level": "中",
       "profile_votes": 3
     },
     {
-      "name": "富锂锰基B",
-      "formula": "Li1.2Ni0.2Mn0.6O2",
+      "name": "磷酸镍锂",
+      "formula": "LiNiPO4",
       "risk_level": "中",
+      "profile_votes": 3
+    },
+    {
+      "name": "DRX-D",
+      "formula": "Li1.2Mn0.4Nb0.4O2",
+      "risk_level": "高",
+      "profile_votes": 2
+    },
+    {
+      "name": "DRX-B",
+      "formula": "Li1.2Mn0.4Zr0.4O2",
+      "risk_level": "高",
       "profile_votes": 2
     },
     {
@@ -401,21 +455,21 @@
       "profile_votes": 2
     },
     {
-      "name": "正交锰酸锂",
-      "formula": "LiMnO2",
-      "risk_level": "低",
-      "profile_votes": 2
-    },
-    {
-      "name": "磷酸镍锂",
-      "formula": "LiNiPO4",
+      "name": "富锂锰基B",
+      "formula": "Li1.2Ni0.2Mn0.6O2",
       "risk_level": "中",
       "profile_votes": 2
     },
     {
-      "name": "焦磷酸铁锂",
-      "formula": "LiFeP2O7",
-      "risk_level": "中",
+      "name": "DRX-C",
+      "formula": "Li1.3Mn0.4Nb0.3O2",
+      "risk_level": "高",
+      "profile_votes": 2
+    },
+    {
+      "name": "镍酸锂",
+      "formula": "LiNiO2",
+      "risk_level": "高",
       "profile_votes": 2
     }
   ]

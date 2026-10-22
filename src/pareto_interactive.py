@@ -44,6 +44,17 @@ _SRC = str(ROOT / "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
+from formula import parse_formula  # noqa: E402
+
+# 硬约束默认档：可执行性底线（不做加权，直接排除）
+DEFAULT_CONSTRAINTS = {
+    "max_cobalt_frac": 0.10,      # Co 原子分数上限（供应链风险）
+    "max_toxicity": 2,            # 毒性等级上限
+    "max_voltage": 4.5,           # 电解液窗口
+    "max_resource_risk": 45.0,    # 供应风险序数分上限
+    "min_capacity": 120.0,        # 理论比容量下限
+}
+
 RANKING = ROOT / "results" / "cathode_ranking_struct.csv"
 OUT_CSV = ROOT / "results" / "pareto_profiles.csv"
 OUT_JSON = ROOT / "results" / "metrics_pareto_profiles.json"
@@ -82,6 +93,10 @@ def main(argv=None) -> int:
     ap.add_argument("--weights", default=None,
                     help="自定义四目标权重，逗号分隔（稳定性,导电性,容量,电压）")
     ap.add_argument("--top", type=int, default=8)
+    ap.add_argument("--constraints", choices=["default", "none"], default="default",
+                    help="硬约束档：default=供应链/毒性/电解液/容量底线；none=只用 Pareto")
+    ap.add_argument("--max-cobalt", type=float, default=None, help="Co 原子分数上限（覆盖默认）")
+    ap.add_argument("--max-option", type=int, default=None, help="未使用占位（兼容旧调用）")
     args = ap.parse_args(argv)
 
     # 单偏好/自定义权重属于"部分运行"：不得覆盖全量 5 偏好的产物（v1.4.2 教训）
@@ -102,6 +117,37 @@ def main(argv=None) -> int:
         if c not in df.columns:
             print(f"[ERROR] 排序表缺列 {c}")
             return 2
+
+    # ---- 硬约束过滤（在评分/前沿之前排除不可行解）----
+    con = dict(DEFAULT_CONSTRAINTS)
+    if args.max_cobalt is not None:
+        con["max_cobalt_frac"] = args.max_cobalt
+    n_before = len(df)
+    violations = {}
+    df["cobalt_frac"] = [
+        (parse_formula(f).get("Co", 0.0) / max(sum(parse_formula(f).values()), 1.0))
+        for f in df["formula"]]
+    keep = pd.Series(True, index=df.index)
+    if args.constraints == "default":
+        checks = {
+            "Co 含量超限": df["cobalt_frac"] > con["max_cobalt_frac"],
+            "毒性超限": df["toxicity_class"] > con["max_toxicity"],
+            "电压超电解液窗口": df["voltage_V"] > con["max_voltage"],
+            "供应风险超限": df["resource_risk_score"] > con["max_resource_risk"],
+            "容量不足": df["Q_theoretical_mAh_g"] < con["min_capacity"],
+        }
+        # 用 Pareto 前沿（不含约束）作为"是否本就可选"的参照
+        for name, bad in checks.items():
+            violations[name] = int(bad.sum())
+            keep &= ~bad.fillna(False)
+        df = df[keep].reset_index(drop=True)
+        print(f"\n硬约束过滤：{n_before} -> {len(df)} 条可行候选")
+        for name, n in violations.items():
+            print(f"  {name}: 排除 {n} 条")
+        if df.empty:
+            print("[ERROR] 约束过紧，没有候选存活；用 --constraints none 或放宽阈值")
+            return 1
+        print("  存活:", ", ".join(df["formula"].head(8)))
 
     Z = _objectives(df)
     Z = (Z - Z.mean(axis=0)) / np.where(Z.std(axis=0) > 0, Z.std(axis=0), 1.0)  # 标准化
@@ -149,6 +195,17 @@ def main(argv=None) -> int:
         "note": ("Pareto 前沿上有 32/40 候选（v1.18.0），因此单一权重排名是任意的；"
                  "本脚本把偏好作为输入，输出该偏好下的最优子集。"
                  "各偏好共同入选的候选可视为「稳健优选」。"),
+    }
+    payload["constraints"] = {
+        "mode": args.constraints,
+        "thresholds": con if args.constraints == "default" else None,
+        "n_before": int(n_before),
+        "n_after": int(len(df)),
+        "excluded_by": violations,
+        "survivors": df["formula"].tolist(),
+        "note": ("硬约束直接排除不可行解（不做加权），这是对「前沿膨胀」的回应："
+                 "六目标下 34/40 都在前沿上，必须先用地板约束剔掉不可执行的方案，"
+                 "再用偏好在前沿内排序。"),
     }
     # 稳健优选：在 ≥半数偏好下都进 Top-N
     rank_cols = [f"rank_{n}" for n in profiles]

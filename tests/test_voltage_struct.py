@@ -866,3 +866,47 @@ class TestSubsetTagGuard:
         for name, marker in self.GUARDS.items():
             src = open(ROOT / "src" / name, encoding="utf-8").read()
             assert marker in src, f"{name} 缺少部分运行改名防护（期望标记 {marker!r}）"
+
+
+class TestHardConstraints:
+    """硬约束过滤：用地板约束先剔掉不可行解，再用偏好排序（v1.21.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_pareto_profiles.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+
+    def test_constraint_block_is_reported(self):
+        if not self.METRICS.exists():
+            pytest.skip("未运行偏好分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        c = m.get("constraints")
+        assert c, "缺少 constraints 块"
+        assert c["mode"] == "default"
+        assert c["n_after"] < c["n_before"], "约束应当真的排除候选"
+        assert len(c["survivors"]) == c["n_after"]
+        assert set(c["excluded_by"]) >= {"Co 含量超限", "毒性超限", "电压超电解液窗口"}
+
+    def test_survivors_actually_satisfy_the_thresholds(self):
+        """逐条复核存活候选确实满足全部地板约束（不能只信脚本自己的计数）。"""
+        import resource_risk as rr
+        import sys as _sys
+        _sys.path.insert(0, str(ROOT / "src"))
+        from formula import parse_formula
+
+        if not self.METRICS.exists():
+            pytest.skip("未运行偏好分析")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        c = m["constraints"]
+        thr = c["thresholds"]
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig").set_index("formula")
+        for f in c["survivors"]:
+            counts = parse_formula(f)
+            total = sum(counts.values())
+            assert counts.get("Co", 0.0) / total <= thr["max_cobalt_frac"] + 1e-9, f
+            assert rr.score_formula(f)["toxicity_class"] <= thr["max_toxicity"], f
+            assert d.loc[f, "voltage_V"] <= thr["max_voltage"] + 1e-9, f
+            assert d.loc[f, "resource_risk_score"] <= thr["max_resource_risk"] + 1e-9, f
+            assert d.loc[f, "Q_theoretical_mAh_g"] >= thr["min_capacity"] - 1e-9, f
+
+    def test_none_mode_exists_for_comparison(self):
+        src = open(ROOT / "src" / "pareto_interactive.py", encoding="utf-8").read()
+        assert '"none"' in src and "DEFAULT_CONSTRAINTS" in src
