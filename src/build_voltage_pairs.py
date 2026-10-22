@@ -54,8 +54,16 @@ OUT_ALL = ROOT / "data" / "raw" / "mp_voltage_pairs_all.json.gz"
 OUT_JSON = ROOT / "results" / "metrics_voltage_pairs.json"
 
 
-def _delithiate(structure_dict: dict, n_remove: int, seed: int = 42):
-    """从结构里移除 n_remove 个 Li（优先移除彼此最近的 Li，减少局部电荷失衡）。"""
+def _delithiate(structure_dict: dict, n_remove: int, seed: int = 42, strategy: str = "crowded"):
+    """移除 n_remove 个 Li。
+
+    strategy:
+      - ``crowded``：优先移除与其它 Li 最近邻距离和最小者（最"拥挤"处先脱）
+      - ``sparse`` ：优先移除最孤立者
+      - ``random`` ：随机移除（固定种子）
+
+    多种策略用于**枚举脱锂构型**，再由 CHGNet 能量选相（见 --variants）。
+    """
     from pymatgen.core import Structure
 
     st = Structure.from_dict(structure_dict)
@@ -66,17 +74,24 @@ def _delithiate(structure_dict: dict, n_remove: int, seed: int = 42):
     if n_remove <= 0:
         return None, 0
     coords = st.cart_coords
-    # 贪心：每次移除与其它 Li 距离之和最小的 Li（即最"拥挤"处先脱）
     remaining = set(li_idx)
     removed = []
-    for _ in range(n_remove):
-        best, best_d = None, float("inf")
-        for i in remaining:
-            d = sum(float(np.linalg.norm(coords[i] - coords[j])) for j in remaining if j != i)
-            if d < best_d:
-                best, best_d = i, d
-        remaining.discard(best)
-        removed.append(best)
+    if strategy == "random":
+        rng = np.random.default_rng(seed)
+        removed = list(rng.choice(sorted(remaining), size=n_remove, replace=False))
+    else:
+        # 贪心：按策略取"最拥挤"或"最孤立"处先脱
+        sign = 1.0 if strategy == "crowded" else -1.0
+        for _ in range(n_remove):
+            best, best_d = None, float("inf")
+            for i in remaining:
+                d = sum(float(np.linalg.norm(coords[i] - coords[j]))
+                        for j in remaining if j != i)
+                d *= sign
+                if d < best_d:
+                    best, best_d = i, d
+            remaining.discard(best)
+            removed.append(best)
     # pymatgen 的 Structure 不支持列表索引 -> 逐位点构造新结构
     keep = [i for i in range(len(st)) if i not in set(removed)]
     new_st = Structure(st.lattice, [st[i].species for i in keep],
@@ -97,6 +112,8 @@ def main(argv=None) -> int:
     ap.add_argument("--relax-steps", type=int, default=300)
     ap.add_argument("--validate-only", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--variants", type=int, default=4,
+                    help="每个目标枚举多少种脱锂构型（按 CHGNet 能量选相）")
     args = ap.parse_args(argv)
 
     try:
@@ -107,8 +124,10 @@ def main(argv=None) -> int:
     import pandas as pd
     import template_substitution as ts
 
-    if args.limit:
-        # 部分运行不得覆盖全量产物（v1.4.2 教训）
+    if args.limit or args.validate_only:
+        # 部分运行不得覆盖全量产物（v1.4.2 教训）；--validate-only 的指标也应单独存放
+        globals()["OUT_JSON"] = (OUT_JSON if args.limit else
+                                 OUT_JSON.with_name(OUT_JSON.stem + "_validation" + OUT_JSON.suffix))
         for attr in ("out_constructed", "out_all"):
             val = getattr(args, attr)
             stem, dot, ext = val.partition(".")
@@ -151,17 +170,25 @@ def main(argv=None) -> int:
         # 目标脱锂量：nLi_extract 相对嵌锂相 Li 总数的比例（至少 1 个、至少留 1 个 Li）
         n_remove = int(round(float(nli_map[f])))
         n_remove = max(1, min(n_remove, li_total - 1))
-        charge, n_rm = _delithiate(st, n_remove)
-        if charge is None:
+        # ---- 枚举多种脱锂构型（多晶型/构型筛选），按 CHGNet 能量选最低者 ----
+        strategies = ["crowded", "sparse", "random", "random"]
+        candidates_relaxed = []
+        for v in range(max(1, args.variants)):
+            strat = strategies[v % len(strategies)]
+            charge, n_rm = _delithiate(st, n_remove, seed=42 + v, strategy=strat)
+            if charge is None:
+                continue
+            try:
+                cr, e = ts.relax(charge, fmax=args.fmax, steps=args.relax_steps)
+                candidates_relaxed.append((e, cr, strat))
+            except Exception as exc:  # noqa: BLE001
+                print(f"    [WARN] {f} 构型 {strat} 弛豫失败: {exc}")
+        if not candidates_relaxed:
             print(f"  [SKIP] {f}: 脱锂失败")
             fails += 1
             continue
-        try:
-            charge_relaxed, e = ts.relax(charge, fmax=args.fmax, steps=args.relax_steps)
-        except Exception as exc:  # noqa: BLE001
-            print(f"  [WARN] {f} 脱锂相弛豫失败: {exc}")
-            fails += 1
-            continue
+        candidates_relaxed.sort(key=lambda x: x[0])
+        e, charge_relaxed, best_strat = candidates_relaxed[0]
         ref = mp_pairs.get(f) or {}
         rows.append({
             "query_formula": f,
@@ -173,12 +200,15 @@ def main(argv=None) -> int:
             "n_charge_atoms": len(charge_relaxed["sites"]),
             "n_removed_Li": int(n_rm),
             "relax_energy_eV_atom": round(float(e), 4),
+            "n_variants_tried": len(candidates_relaxed),
+            "selected_strategy": best_strat,
+            "variant_energies": [round(float(x[0]), 4) for x in candidates_relaxed],
             "source": "constructed" if not ref else "constructed(validation)",
             "structure_charge": charge_relaxed,
             "structure_discharge": st,
         })
         print(f"  [OK ] {f:26s} 移除 {n_rm} Li -> 脱锂相 {len(charge_relaxed['sites'])} 位点 "
-              f"(E={e:.3f} eV/atom)")
+              f"| 试 {len(candidates_relaxed)} 构型，选 {best_strat} (E={e:.3f} eV/atom)")
 
     op = Path(args.out_constructed).resolve()
     with gzip.open(op, "wt", encoding="utf-8") as f:
@@ -220,6 +250,7 @@ def main(argv=None) -> int:
     payload = {
         "n_candidates_with_mp_pairs": len(mp_pairs),
         "n_constructed": sum(1 for r in rows if r["source"] == "constructed"),
+        "n_variants": args.variants,
         "n_total_pairs": len(merged),
         "coverage_after": round(len(merged) / max(len(cand), 1) * 100, 1),
         "n_failed": fails,
