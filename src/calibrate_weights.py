@@ -9,7 +9,12 @@ v1.15.0 的四维权重（稳定性 0.35 / 导电性 0.20 / 容量 0.25 / 电压
 
 ### 方法
 
-1. 外部目标：**实测比能量** = `voltage_practical_V × capacity_practical_mAh_g`（Wh/kg）；
+1. 外部目标（**多元**）：
+   - 比能量 `Wh/kg = V_practical × Q_practical`（Wh/kg）
+   - 循环寿命 `cycle_life_cycles`
+   - 倍率保持率 `rate_retention_pct`
+   - **成本指数**（越小越好，取负号参与）
+   - 热稳定性 `thermal_onset_C`；
 2. 候选侧：用 `results/cathode_ranking_struct.csv` 的四维百分位
    （稳定性 / 导电性 / 容量 / 电压，均已在 A 层内归一化）；
 3. 在权重单纯形（步长 0.05，和为 1）上网格搜索，最大化**加权评分与实测比能量的 Spearman ρ**；
@@ -61,6 +66,8 @@ def main(argv=None) -> int:
     ap.add_argument("--reference", default=str(REFERENCE))
     ap.add_argument("--ranking", default=str(RANKING))
     ap.add_argument("--step", type=float, default=0.05)
+    ap.add_argument("--bootstrap", type=int, default=60,
+                    help="自助法重采样次数（权重不确定度）")
     args = ap.parse_args(argv)
 
     for p in (Path(args.reference), Path(args.ranking)):
@@ -72,10 +79,17 @@ def main(argv=None) -> int:
     rank = pd.read_csv(args.ranking, encoding="utf-8-sig")
     ref["specific_energy_Wh_kg"] = (ref["voltage_practical_V"]
                                     * ref["capacity_practical_mAh_g"])
-    merged = rank.merge(ref[["formula", "voltage_practical_V",
-                             "capacity_practical_mAh_g", "specific_energy_Wh_kg"]],
-                        on="formula", how="inner")
-    print(f"参考表 {len(ref)} 条 | 排序表 {len(rank)} 条 | 可对齐 {len(merged)} 条")
+    ext_cols = ["specific_energy_Wh_kg", "cycle_life_cycles",
+                "rate_retention_pct", "thermal_onset_C"]
+    for c in ext_cols:
+        if c not in ref.columns:
+            print(f"[ERROR] 参考表缺列 {c}")
+            return 2
+    ref["cost_score"] = -ref["cost_index"]        # 成本越低越好 -> 取负
+    ext_cols.append("cost_score")
+    merged = rank.merge(ref[["formula"] + ext_cols], on="formula", how="inner")
+    print(f"参考表 {len(ref)} 条 | 排序表 {len(rank)} 条 | 可对齐 {len(merged)} 条 | "
+          f"外部目标 {len(ext_cols)} 个")
     if len(merged) < 12:
         print("[ERROR] 可对齐样本过少（<12），无法可靠校准")
         return 1
@@ -85,20 +99,35 @@ def main(argv=None) -> int:
             print(f"[ERROR] 排序表缺列 {c}（先跑 screening_struct.py）")
             return 2
 
+    # 多元目标：各目标 z 标准化后等权合成（避免某一量纲独大）
+    Z = {}
+    for c in ext_cols:
+        v = merged[c].to_numpy(dtype=float)
+        Z[c] = (v - v.mean()) / (v.std() if v.std() > 0 else 1.0)
+    multi = np.mean([Z[c] for c in ext_cols], axis=0)
     y = merged["specific_energy_Wh_kg"].to_numpy(dtype=float)
     X = merged[DIMS].to_numpy(dtype=float)
 
-    y_ser = pd.Series(y)
+    def rho_against(w, target):
+        return float(pd.Series(X @ np.asarray(w)).corr(pd.Series(target),
+                                                       method="spearman"))
 
     def rho(w):
-        return float(pd.Series(X @ np.asarray(w)).corr(y_ser, method="spearman"))
+        return rho_against(w, y)
+
+    def rho_multi(w):
+        return rho_against(w, multi)
 
     # 单维度基线
     single = {}
+    single_matrix = {}
     for dim in DIMS:
         w = np.zeros(len(DIMS))
         w[DIMS.index(dim)] = 1.0
         single[dim] = round(rho(w), 4)
+        single_matrix[dim] = {c: round(rho_against(
+            w, Z[c] * (merged[c].std() if merged[c].std() > 0 else 1.0)
+            + merged[c].mean()), 4) for c in ext_cols}
     prior_vec = np.array([PRIOR["stability"], PRIOR["conduction"],
                            PRIOR["capacity"], PRIOR["voltage"]])
     prior_rho = round(rho(prior_vec), 4)
@@ -114,10 +143,15 @@ def main(argv=None) -> int:
         if a < MIN_STAB or b < MIN_COND or d < MIN_VOLT or c > MAX_CAP:
             continue
         w = (a, b, c, d)
+        per = {c: rho_against(w, Z[c] * (merged[c].std() if merged[c].std() > 0 else 1.0)
+                              + merged[c].mean()) for c in ext_cols}
         rows.append({"stability": a, "conduction": b, "capacity": c, "voltage": d,
-                     "spearman_rho": round(rho(w), 4)})
-    res = pd.DataFrame(rows).sort_values("spearman_rho", ascending=False).reset_index(drop=True)
-    best = res.iloc[0]
+                     "spearman_rho": round(rho(w), 4),
+                     "rho_multi": round(rho_multi(w), 4),
+                     "rho_min_across_targets": round(min(per.values()), 4)})
+    res = pd.DataFrame(rows).sort_values("rho_multi", ascending=False).reset_index(drop=True)
+    best = res.iloc[0]                      # 多目标（等权 z 合成）最优
+    best_maximin = res.sort_values("rho_min_across_targets", ascending=False).iloc[0]
     print(f"\n网格点数 {len(res)} | 先验权重 ρ={prior_rho} | "
           f"最优 ρ={best['spearman_rho']}")
     print("最优权重: 稳定性 {stability:.2f} / 导电性 {conduction:.2f} / "
@@ -128,6 +162,7 @@ def main(argv=None) -> int:
     merged["energy_density_model_Wh_kg"] = (merged["voltage_conservative_V"]
                                             * merged["Q_theoretical_mAh_g"])
     merged["pct_energy_model"] = merged["energy_density_model_Wh_kg"].rank(pct=True) * 100
+    y_ser = pd.Series(y)
     score_energy = (merged["pct_stability"] * PRIOR["stability"]
                     + merged["pct_conduction"] * PRIOR["conduction"]
                     + merged["pct_energy_model"] * (PRIOR["capacity"] + PRIOR["voltage"]))
@@ -139,11 +174,62 @@ def main(argv=None) -> int:
                                + merged["pct_voltage"] * PRIOR["voltage"]).corr(
                                    y_ser, method="spearman")), 4)
 
+    # ---- 自助法：权重不确定度（重采样 + ±10% 观测噪声） ----
+    rng = np.random.default_rng(42)
+    boot_best = []
+    n = len(merged)
+    for _ in range(args.bootstrap):
+        idx = rng.integers(0, n, size=n)
+        Xb = X[idx]
+        yb = multi[idx] * (1 + rng.normal(0, 0.10, size=n))     # 观测噪声 ±10%
+        best_w, best_r = None, -2.0
+        for a, b, c in itertools.product(grid, grid, grid):
+            d = round(1.0 - a - b - c, 4)
+            if d < 0 or d > 1 or a < MIN_STAB or b < MIN_COND or d < MIN_VOLT or c > MAX_CAP:
+                continue
+            r = float(pd.Series(Xb @ np.array([a, b, c, d])).corr(
+                pd.Series(yb), method="spearman"))
+            if r > best_r:
+                best_r, best_w = r, (a, b, c, d)
+        if best_w:
+            boot_best.append({"stability": best_w[0], "conduction": best_w[1],
+                              "capacity": best_w[2], "voltage": best_w[3],
+                              "rho_multi": round(best_r, 4)})
+    boot = pd.DataFrame(boot_best)
+    weight_uncertainty = {}
+    if len(boot):
+        for k in ("stability", "conduction", "capacity", "voltage"):
+            s = boot[k]
+            weight_uncertainty[k] = {
+                "median": round(float(s.median()), 3),
+                "p05": round(float(s.quantile(0.05)), 3),
+                "p95": round(float(s.quantile(0.95)), 3),
+                "share_equal_to_best": round(float((s == best[k]).mean()), 3),
+            }
+
     payload = {
         "n_reference": int(len(ref)),
         "n_aligned": int(len(merged)),
         "target": "specific_energy_Wh_kg = V_practical × Q_practical",
         "single_dimension_rho": single,
+        "single_dimension_rho_matrix": single_matrix,
+        "external_targets": ext_cols,
+        "multi_objective": {
+            "definition": "各外部目标 z 标准化后等权平均，再与评分做 Spearman ρ",
+            "best_rho_multi": float(best["rho_multi"]),
+            "best_weights_multi": {k: float(best[k]) for k in
+                                   ("stability", "conduction", "capacity", "voltage")},
+            "best_maximin_rho_min": float(best_maximin["rho_min_across_targets"]),
+            "best_weights_maximin": {k: float(best_maximin[k]) for k in
+                                     ("stability", "conduction", "capacity", "voltage")},
+        },
+        "weight_uncertainty_bootstrap": {
+            "n_resamples": int(args.bootstrap),
+            "noise": 0.10,
+            "per_weight": weight_uncertainty,
+            "note": ("自助法（重采样 + ±10% 观测噪声）给出的权重区间；"
+                     "区间宽说明参考表不足以唯一确定权重，应读作合理范围。"),
+        },
         "prior_weights": PRIOR,
         "prior_rho": prior_rho,
         "best_weights": {k: float(best[k]) for k in
@@ -196,6 +282,16 @@ def main(argv=None) -> int:
     plt.close(fig)
 
     print("\n各维度单独 ρ:", {dims_cn[k]: v for k, v in single.items()})
+    print("多目标（等权 z 合成）: 最优 ρ_multi =", round(best["rho_multi"], 4),
+          "权重", {k: float(best[k]) for k in ("stability", "conduction", "capacity", "voltage")})
+    print("maximin 稳健权重:", {k: float(best_maximin[k]) for k in
+                                ("stability", "conduction", "capacity", "voltage")},
+          "| 最差目标 ρ =", round(best_maximin["rho_min_across_targets"], 4))
+    if weight_uncertainty:
+        print("权重不确定度（自助法 90% 区间）:")
+        for k, v in weight_uncertainty.items():
+            print(f"  {dims_cn['pct_' + k]:6s} 中位数 {v['median']:.2f} "
+                  f"[{v['p05']:.2f}, {v['p95']:.2f}]")
     print(f"能量密度联合口径 ρ（用实测能量密度作对照）= {rho_energy}")
     print(f"[SAVE] results/{OUT_JSON.name} / {OUT_CSV.name} / {OUT_PNG.name}")
     return 0

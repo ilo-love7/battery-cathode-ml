@@ -64,6 +64,7 @@ POLYMORPHS = ROOT / "data" / "raw" / "mp_structures_candidates_polymorph.json.gz
 ENSEMBLES = ROOT / "data" / "raw" / "mp_structures_candidates_ensemble.json.gz"
 LOCAL_CONFORMAL = ROOT / "results" / "local_conformal_voltage.csv"
 WEIGHTS_JSON = ROOT / "results" / "metrics_weights_calibration.json"
+VOLT_HIGH, VOLT_VERY_HIGH, VOLT_LOW = 4.5, 5.0, 2.5      # V，电解液窗口/能量密度风险线
 CGCNN_EF = ROOT / "results" / "cgcnn_mp_8k.pt"
 CGCNN_GAP = ROOT / "results" / "cgcnn_gap_8k.pt"
 GAP_DIFF_THRESHOLD = 1.5            # eV，结构带隙(DFT-PBE) 与 成分带隙(实验训练) 的系统差异阈值
@@ -376,8 +377,11 @@ def main(argv=None) -> int:
                 w_stab, w_cond = float(bw["stability"]), float(bw["conduction"])
                 w_cap, w_volt = float(bw["capacity"]), float(bw["voltage"])
                 weights_source = "calibrated"
-                weights_meta = {"rho_calibrated": cal.get("best_rho"),
+                weights_meta = {"rho_calibrated_single_target": cal.get("best_rho"),
                                 "rho_prior": cal.get("prior_rho"),
+                                "multi_objective": (cal.get("multi_objective") or {}).get(
+                                    "best_rho_multi"),
+                                "external_targets": cal.get("external_targets"),
                                 "n_aligned": cal.get("n_aligned"),
                                 "constraints": cal.get("constraints")}
                 print(f"评分权重（校准）: 稳定性 {w_stab:.2f} / 导电性 {w_cond:.2f} / "
@@ -543,7 +547,18 @@ def main(argv=None) -> int:
            "flag"] += "结构为同构替换相(已验证与MP可比);"
     df.loc[df["structure_origin"] == "无序系综(CHGNet)",
            "flag"] += "评分用系综均值(已含1σ保守惩罚);"
+    # ② 电压风险项：电压本身不参与线性排序（校准显示其排序信息不可用），
+    #    改为显式风险提示 —— 高于常规电解液窗口 / 偏低限制能量密度
+    df["voltage_risk"] = ""
+    df.loc[df["voltage_V"] > VOLT_HIGH, "voltage_risk"] += "电压>4.5V(需高压电解液);"
+    df.loc[df["voltage_V"] > VOLT_VERY_HIGH, "voltage_risk"] += "电压>5.0V(超常规窗口);"
+    df.loc[df["voltage_V"] < VOLT_LOW, "voltage_risk"] += "电压<2.5V(能量密度受限);"
+    # （电压风险单独成列，不重复写进 flag）
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
+    # 风险等级：结构缺失/相分歧/超窗口 = 高；其余仅提示性标记 = 中；无标记 = 低
+    high_mark = (df["flag"].str.contains("结构缺失|排名偏离大|超常规窗口"))
+    mid_mark = (df["flag"] != "结构&成分一致")
+    df["risk_level"] = np.where(high_mark, "高", np.where(mid_mark, "中", "低"))
 
     # ---- 分层产物（tier 已在前面算好，此处只做分组与排序） ----
     covered = (df[df["structure_tier"] == "A_comparable"]
@@ -582,7 +597,7 @@ def main(argv=None) -> int:
             "Q_theoretical_mAh_g", "voltage_conservative_V", "voltage_pi90_halfwidth_V",
             "pct_stability", "pct_conduction", "pct_capacity", "pct_voltage",
             "energy_density_Wh_kg", "pct_energy", "score", "score_energy",
-            "score_3dim", "flag", "struct_material_id"]
+            "score_3dim", "risk_level", "voltage_risk", "flag", "struct_material_id"]
     out_csv = OUT / f"cathode_ranking_struct.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
     fb_csv = OUT / f"cathode_ranking_struct_fallback.csv"
@@ -678,6 +693,15 @@ def main(argv=None) -> int:
                     "voltage": w_volt},
         "weights_source": weights_source,
         "weights_calibration_meta": weights_meta,
+        "voltage_risk": {
+            "thresholds_V": {"high": VOLT_HIGH, "very_high": VOLT_VERY_HIGH, "low": VOLT_LOW},
+            "n_high_voltage_gt4_5": int((df["voltage_V"] > VOLT_HIGH).sum()),
+            "n_beyond_electrolyte_window": int((df["voltage_V"] > VOLT_VERY_HIGH).sum()),
+            "n_low_voltage_lt2_5": int((df["voltage_V"] < VOLT_LOW).sum()),
+            "note": ("校准表明模型电压的排序信息不可用（ρ≈-0.02），故电压不做线性加权排序，"
+                     "改为显式风险项：>4.5V 需高压电解液、>5.0V 超常规窗口、<2.5V 能量密度受限。"),
+        },
+        "risk_level_counts": df["risk_level"].value_counts().to_dict(),
         "energy_density": {
             "definition": "voltage_conservative_V × Q_theoretical_mAh_g（Wh/kg）",
             "median_Wh_kg": (None if df["energy_density_Wh_kg"].dropna().empty else

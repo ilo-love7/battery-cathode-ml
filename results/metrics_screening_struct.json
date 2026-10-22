@@ -36,17 +36,25 @@
   "struct_voltage_coverage_among_ranked": 20,
   "struct_gap_coverage_among_ranked": 40,
   "gap_metal_disagreement_count": 5,
-  "gap_rank_correlation_struct_vs_comp": -0.5304,
+  "gap_rank_correlation_struct_vs_comp": -0.531,
   "weights": {
-    "stability": 0.2,
+    "stability": 0.3,
     "conduction": 0.1,
     "capacity": 0.5,
-    "voltage": 0.2
+    "voltage": 0.1
   },
   "weights_source": "calibrated",
   "weights_calibration_meta": {
-    "rho_calibrated": 0.5444,
-    "rho_prior": -0.1434,
+    "rho_calibrated_single_target": 0.4532,
+    "rho_prior": -0.143,
+    "multi_objective": 0.391,
+    "external_targets": [
+      "specific_energy_Wh_kg",
+      "cycle_life_cycles",
+      "rate_retention_pct",
+      "thermal_onset_C",
+      "cost_score"
+    ],
     "n_aligned": 39,
     "constraints": {
       "min_stability": 0.2,
@@ -54,6 +62,22 @@
       "min_voltage": 0.1,
       "max_capacity": 0.5
     }
+  },
+  "voltage_risk": {
+    "thresholds_V": {
+      "high": 4.5,
+      "very_high": 5.0,
+      "low": 2.5
+    },
+    "n_high_voltage_gt4_5": 2,
+    "n_beyond_electrolyte_window": 0,
+    "n_low_voltage_lt2_5": 6,
+    "note": "校准表明模型电压的排序信息不可用（ρ≈-0.02），故电压不做线性加权排序，改为显式风险项：>4.5V 需高压电解液、>5.0V 超常规窗口、<2.5V 能量密度受限。"
+  },
+  "risk_level_counts": {
+    "中": 28,
+    "高": 6,
+    "低": 6
   },
   "energy_density": {
     "definition": "voltage_conservative_V × Q_theoretical_mAh_g（Wh/kg）",
@@ -78,10 +102,10 @@
     "带隙≤0(金属/外推);带隙结构/成分差异大;": 7,
     "结构&成分一致": 6,
     "电压成分回退;": 6,
-    "电压成分回退;评分用系综均值(已含1σ保守惩罚);": 3,
     "带隙结构/成分差异大;": 3,
-    "结构/成分排名偏离大;": 2,
+    "电压成分回退;评分用系综均值(已含1σ保守惩罚);": 3,
     "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);": 2,
+    "结构/成分排名偏离大;": 2,
     "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);": 2,
     "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;": 2,
     "结构判金属/成分判半导体(PBE低估);电压成分回退;": 2,
@@ -94,73 +118,73 @@
   "top10": [
     {
       "rank": 1,
-      "name": "铬酸锂",
-      "formula": "LiCrO2",
-      "score": 75.25,
-      "flag": "结构/成分排名偏离大;"
+      "name": "DRX-B",
+      "formula": "Li1.2Mn0.4Zr0.4O2",
+      "score": 74.5,
+      "flag": "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 2,
+      "name": "铬酸锂",
+      "formula": "LiCrO2",
+      "score": 72.5,
+      "flag": "结构/成分排名偏离大;"
+    },
+    {
+      "rank": 3,
       "name": "富锂锰基A",
       "formula": "Li1.2Ni0.13Co0.13Mn0.54O2",
       "score": 70.0,
       "flag": "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
-      "rank": 3,
-      "name": "富锂锰基B",
-      "formula": "Li1.2Ni0.2Mn0.6O2",
-      "score": 69.75,
-      "flag": "结构判金属/成分判半导体(PBE低估);电压成分回退;评分用系综均值(已含1σ保守惩罚);"
-    },
-    {
       "rank": 4,
-      "name": "正交锰酸锂",
-      "formula": "LiMnO2",
-      "score": 65.75,
-      "flag": "结构&成分一致"
+      "name": "DRX-D",
+      "formula": "Li1.2Mn0.4Nb0.4O2",
+      "score": 69.5,
+      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 5,
-      "name": "DRX-B",
-      "formula": "Li1.2Mn0.4Zr0.4O2",
-      "score": 65.25,
-      "flag": "结构/成分排名偏离大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+      "name": "富锂锰基B",
+      "formula": "Li1.2Ni0.2Mn0.6O2",
+      "score": 68.75,
+      "flag": "结构判金属/成分判半导体(PBE低估);电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 6,
       "name": "层状钒氧化物",
       "formula": "LiV3O8",
-      "score": 64.75,
+      "score": 68.0,
       "flag": "结构&成分一致"
     },
     {
       "rank": 7,
       "name": "DRX-A",
       "formula": "Li1.2Mn0.4Ti0.4O2",
-      "score": 64.5,
+      "score": 67.0,
       "flag": "带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 8,
-      "name": "DRX-D",
-      "formula": "Li1.2Mn0.4Nb0.4O2",
-      "score": 61.75,
-      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+      "name": "正交锰酸锂",
+      "formula": "LiMnO2",
+      "score": 66.5,
+      "flag": "结构&成分一致"
     },
     {
       "rank": 9,
-      "name": "LMFP-8020",
-      "formula": "LiMn0.8Fe0.2PO4",
-      "score": 60.25,
-      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
+      "name": "DRX-C",
+      "formula": "Li1.3Mn0.4Nb0.3O2",
+      "score": 62.5,
+      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
     },
     {
       "rank": 10,
-      "name": "DRX-C",
-      "formula": "Li1.3Mn0.4Nb0.3O2",
-      "score": 59.0,
-      "flag": "结构/成分排名偏离大;带隙结构/成分差异大;电压成分回退;评分用系综均值(已含1σ保守惩罚);"
+      "name": "LMFP-8020",
+      "formula": "LiMn0.8Fe0.2PO4",
+      "score": 62.25,
+      "flag": "带隙≤0(金属/外推);带隙结构/成分差异大;电压成分回退;"
     }
   ],
   "stability_rank_correlation_struct_vs_comp": 0.4469,

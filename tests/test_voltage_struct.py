@@ -600,3 +600,78 @@ class TestConditionalCoverage:
         worst_cal = min(v["local_calibrated_coverage"] for v in fam.values())
         assert worst_cal > worst_global, (
             "若校准后最差族反而不如全局 q，则没有理由使用局部区间")
+
+
+class TestMultiObjectiveCalibration:
+    """多元外部标签校准 + 权重不确定度（v1.17.0）。"""
+
+    CAL = ROOT / "results" / "metrics_weights_calibration.json"
+    REF = ROOT / "data" / "reference_cathodes.csv"
+
+    def test_reference_table_has_multiple_targets(self):
+        ref = pd.read_csv(self.REF, encoding="utf-8-sig")
+        for col in ("specific_energy_Wh_kg", "cycle_life_cycles", "rate_retention_pct",
+                    "cost_index", "thermal_onset_C"):
+            if col == "specific_energy_Wh_kg":
+                continue
+            assert col in ref.columns, col
+            assert ref[col].notna().all()
+        assert ref["cycle_life_cycles"].between(50, 10000).all()
+        assert ref["cost_index"].between(0, 100).all()
+
+    def test_multi_objective_block_present(self):
+        if not self.CAL.exists():
+            pytest.skip("未运行权重校准")
+        m = json.load(open(self.CAL, encoding="utf-8"))
+        assert len(m["external_targets"]) >= 4
+        mo = m["multi_objective"]
+        assert "best_weights_multi" in mo and "best_weights_maximin" in mo
+        assert abs(sum(mo["best_weights_multi"].values()) - 1.0) < 1e-9
+
+    def test_single_dimension_matrix_covers_all_targets(self):
+        if not self.CAL.exists():
+            pytest.skip("未运行权重校准")
+        m = json.load(open(self.CAL, encoding="utf-8"))
+        mat = m["single_dimension_rho_matrix"]
+        assert set(mat) == {"pct_stability", "pct_conduction", "pct_capacity", "pct_voltage"}
+        for dim, row in mat.items():
+            assert set(row) == set(m["external_targets"]), dim
+
+    def test_bootstrap_uncertainty_reported(self):
+        if not self.CAL.exists():
+            pytest.skip("未运行权重校准")
+        m = json.load(open(self.CAL, encoding="utf-8"))
+        bu = m["weight_uncertainty_bootstrap"]
+        assert bu["n_resamples"] >= 10
+        for k, v in bu["per_weight"].items():
+            assert v["p05"] <= v["median"] <= v["p95"], (k, v)
+
+
+class TestVoltageRiskItems:
+    """电压不做线性排序，改为显式风险项（v1.17.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+
+    def test_risk_thresholds_and_counts(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        vr = m["voltage_risk"]
+        assert vr["thresholds_V"] == {"high": 4.5, "very_high": 5.0, "low": 2.5}
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        assert (d["voltage_V"] > 4.5).sum() == vr["n_high_voltage_gt4_5"]
+        assert (d["voltage_V"] > 5.0).sum() == vr["n_beyond_electrolyte_window"]
+        assert (d["voltage_V"] < 2.5).sum() == vr["n_low_voltage_lt2_5"]
+
+    def test_risk_level_column(self):
+        if not self.RANKED.exists():
+            pytest.skip("未生成排序表")
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        assert "risk_level" in d.columns
+        assert set(d["risk_level"]) <= {"低", "中", "高"}
+        assert "voltage_risk" in d.columns
+        # 超窗口的候选必须被标为高/中风险且带电压风险文本
+        risky = d[d["voltage_V"] > 5.0]
+        if len(risky):
+            assert (risky["voltage_risk"] != "").all()
