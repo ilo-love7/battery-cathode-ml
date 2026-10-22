@@ -82,7 +82,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 161 个单元测试（160 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 163 个单元测试（162 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -327,7 +327,12 @@ D:\项目\venvs\bcm-cgcnn\Scripts\python.exe src/screening_struct.py
 **无序装饰噪声（v1.13.0）**：DRX/富锂候选改为 **N=8 个随机装饰的系综**（`drx_ensemble.py`，
 每个装饰经 CHGNet 弛豫）。实测系综标准差：每原子形成能 **0.0209 eV/atom**（可忽略），
 带隙 **0.1043 eV**（最大 0.2608，**必须作为误差条引用**）。
-导出列：`ef_ens_std_eV_atom`、`gap_ens_std_eV`。
+导出列：`ef_ens_std_eV_atom`、`gap_ens_std_eV`、`n_decorations`、`ef_ens_mean_eV_atom`。
+
+**评分口径：1σ 保守估计（v1.14.0）** —— 系综候选的稳定性/带隙点预测改用**系综均值**
+（保留 `cgcnn_ef_best_member_eV_atom` 对照），评分用 `mean + σ`（稳定性取更不稳定一侧、
+带隙取更绝缘一侧）；无误差条的候选 σ=0，口径统一。指标里的 `scoring_mode = conservative_1sigma` 即此。
+语义说明：σ 是**结构装饰噪声**；默认导电性评分用实验口径成分带隙时，它是数据质量惩罚，配合 `--prefer-struct-gap` 时即结构带隙的不确定度。
 
 Top 5（A 层 40 条）：LiMn₀.₈Fe₀.₂PO₄(72.8) > Li₂MnSiO₄(72.3) > LiMnPO₄(72.0) > LiMn₀.₆Fe₀.₄PO₄(71.0) > LiV₃O₈(69.8)
 
@@ -486,7 +491,7 @@ battery-cathode-ml/
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 161 个单元测试
+├── tests/                       # 163 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI
@@ -515,7 +520,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 161 个测试
+pytest tests/ -v                                             # 163 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 
@@ -553,7 +558,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.13.0}
+  version = {1.14.0}
 }
 ```
 

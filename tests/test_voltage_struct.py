@@ -448,3 +448,37 @@ class TestEnsembleErrorBars:
         if len(ens_rows):
             assert ens_rows["ef_ens_std_eV_atom"].notna().all()
             assert ens_rows["gap_ens_std_eV"].notna().all()
+
+
+class TestConservativeScoring:
+    """1σ 保守评分：系综候选用 mean+σ，无误差条者退化为点预测（v1.14.0）。"""
+
+    METRICS = ROOT / "results" / "metrics_screening_struct.json"
+    RANKED = ROOT / "results" / "cathode_ranking_struct.csv"
+
+    def test_scoring_mode_is_declared(self):
+        if not self.METRICS.exists():
+            pytest.skip("未生成结构筛选指标")
+        m = json.load(open(self.METRICS, encoding="utf-8"))
+        assert m["scoring_mode"] == "conservative_1sigma"
+        assert m["decoration_noise"]["n_ensemble_candidates"] >= 1
+
+    def test_conservative_equals_point_plus_sigma(self):
+        if not self.RANKED.exists():
+            pytest.skip("未生成排序表")
+        d = pd.read_csv(self.RANKED, encoding="utf-8-sig")
+        for col in ("stability_conservative_eV_atom", "gap_conservative_eV",
+                    "cgcnn_ef_best_member_eV_atom"):
+            assert col in d.columns
+        # 无误差条（MP 结构）的候选：保守值 == 点预测
+        plain = d[d["ef_ens_std_eV_atom"].isna()]
+        assert (plain["stability_conservative_eV_atom"]
+                - plain["stability_eV_atom"]).abs().max() < 1e-9
+        # 系综候选：保守值 == 系综均值 + σ，且点预测已换成系综均值
+        ens = d[d["ef_ens_std_eV_atom"].notna()]
+        if len(ens):
+            delta = ens["stability_conservative_eV_atom"] - ens["stability_eV_atom"]
+            assert (delta - ens["ef_ens_std_eV_atom"]).abs().max() < 1e-6
+            assert (ens["cgcnn_ef_eV_atom"]
+                    - ens["cgcnn_ef_best_member_eV_atom"]).abs().max() > 0, (
+                "系综候选的点预测应区别于单个 best member")

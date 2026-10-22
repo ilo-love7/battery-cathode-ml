@@ -3,6 +3,43 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.14.0] - 2026-10-21
+
+**核心变化：评分改用「系综均值 + 1σ 保守估计」，把结构不确定度真正带进候选排序。**
+
+### 变更
+
+- `screening_struct.py` 评分口径升级为 `conservative_1sigma`：
+  - **系综来源候选的稳定性/带隙点预测改用系综均值**（不再是单个代表结构），
+    并保留 `cgcnn_ef_best_member_eV_atom` 供对照；
+  - 稳定性评分用 `mean + σ`（更不稳定的一侧），导电性在带隙上加 `σ`（更绝缘的一侧）；
+  - 无误差条的候选（MP 结构）σ=0，退化为普通点预测 —— 口径统一、可比。
+  - 新增列：`n_decorations`、`ef_ens_mean_eV_atom`、`gap_ens_mean_eV`、
+    `stability_conservative_eV_atom`、`gap_conservative_eV`、`cgcnn_ef_best_member_eV_atom`
+- 指标新增 `scoring_mode` 与 `decoration_noise.n_ensemble_candidates`。
+
+### 语义说明（避免误读）
+
+σ 是**结构装饰噪声**。默认导电性评分用实验口径的成分带隙（附录 J 的结论），
+此时 σ 不是"成分带隙自身的误差"，而是**该候选结构数据质量较低的保守惩罚**；
+若配合 `--prefer-struct-gap`，σ 则正好是结构带隙的不确定度（已在代码与 metrics 中写明）。
+
+### 实测影响
+
+| 候选 | best member | 系综均值 | 1σ 保守值 | σ |
+|---|---|---|---|---|
+| DRX-B Li₁.₂Mn₀.₄Zr₀.₄O₂ | −2.641 | **−2.624** | −2.613 | 0.011 |
+| DRX-A Li₁.₂Mn₀.₄Ti₀.₄O₂ | −1.877 | **−1.944** | −1.883 | 0.060 |
+| DRX-C Li₁.₃Mn₀.₄Nb₀.₃O₂ | −1.877 | **−1.916** | −1.864 | 0.052 |
+
+带隙 σ 最大的 NMC622 为 **0.261 eV** —— 该候选的"导电性"结论应被视为最不确定的一档。
+
+### 变更（测试）
+
+- 测试 161 → **163**（162 通过 + 1 条件跳过）；新增 `TestConservativeScoring`（口径声明 + 逐行核对
+  `conservative == point + σ`，并要求系综候选的点预测确实区别于 best member）
+- 版本 1.13.0 → 1.14.0
+
 ## [1.13.0] - 2026-10-21
 
 **核心变化：把 DRX/富锂候选的「无序装饰噪声」量化成误差条 —— 稳定性可忽略，带隙不可忽略。**

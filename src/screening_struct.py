@@ -290,7 +290,14 @@ def main(argv=None) -> int:
                     origin[f_] = "无序系综(CHGNet)"
                     struct_ids[f_] = r.get("material_id", f"ens:{f_}")
                     e = r.get("ensemble") or {}
-                    ens_stats[f_] = (e.get("cgcnn_ef_std_eV_atom"), e.get("cgcnn_gap_std_eV"))
+                    ens_stats[f_] = {
+                        "ef_mean": e.get("cgcnn_ef_mean_eV_atom"),
+                        "ef_std": e.get("cgcnn_ef_std_eV_atom"),
+                        "ef_best": e.get("best_member_ef_eV_atom"),
+                        "gap_mean": e.get("cgcnn_gap_mean_eV"),
+                        "gap_std": e.get("cgcnn_gap_std_eV"),
+                        "n_decorations": e.get("n_decorations"),
+                    }
                     n_ens += 1
             print(f"无序系综代表结构补充: {n_ens} 条 → 结构覆盖 {len(struct_map)}/{len(formulas)}")
 
@@ -381,8 +388,22 @@ def main(argv=None) -> int:
         np.where(df["structure_from_prototype"], "B_prototype", "C_none"))
     df["has_struct_voltage"] = df["cgcnn_voltage_V"].notna()
     # 装饰噪声误差条（仅系综来源的候选有值）
-    df["ef_ens_std_eV_atom"] = [ens_stats.get(f, (np.nan, np.nan))[0] for f in formulas]
-    df["gap_ens_std_eV"] = [ens_stats.get(f, (np.nan, np.nan))[1] for f in formulas]
+    def _ens(f, key):
+        return (ens_stats.get(f) or {}).get(key, np.nan)
+
+    df["ef_ens_std_eV_atom"] = [_ens(f, "ef_std") for f in formulas]
+    df["gap_ens_std_eV"] = [_ens(f, "gap_std") for f in formulas]
+    df["ef_ens_mean_eV_atom"] = [_ens(f, "ef_mean") for f in formulas]
+    df["gap_ens_mean_eV"] = [_ens(f, "gap_mean") for f in formulas]
+    df["n_decorations"] = [_ens(f, "n_decorations") for f in formulas]
+
+    # ---- 系综来源的候选：**评分改用系综均值**（单装饰名次不稳，见报告附录 M） ----
+    df["cgcnn_ef_best_member_eV_atom"] = df["cgcnn_ef_eV_atom"]
+    df["cgcnn_gap_best_member_eV"] = df["cgcnn_gap_eV"]
+    ens_mask = df["ef_ens_mean_eV_atom"].notna()
+    df.loc[ens_mask, "cgcnn_ef_eV_atom"] = df.loc[ens_mask, "ef_ens_mean_eV_atom"]
+    df.loc[ens_mask & df["gap_ens_mean_eV"].notna(), "cgcnn_gap_eV"] = \
+        df.loc[ens_mask & df["gap_ens_mean_eV"].notna(), "gap_ens_mean_eV"]
     df["stability_eV_atom"] = df["cgcnn_ef_eV_atom"].where(df["has_structure"],
                                                            df["comp_ef_eV_atom"])
     df["voltage_V"] = df["cgcnn_voltage_V"].where(df["has_struct_voltage"], df["comp_voltage_V"])
@@ -410,14 +431,25 @@ def main(argv=None) -> int:
             q.append(np.nan)
     df["Q_theoretical_mAh_g"] = q
 
-    # ---- 评分（**层内百分位**：跨层不可比，故每层各自归一化） ----
+    # ---- 1σ 保守估计（无误差条时 σ=0） ----
+    #  稳定性：越负越稳定 -> 保守取 ef + σ（更不稳定的一侧），σ 来自结构系综；
+    #  导电性：带隙越大越差 -> 保守取 gap + σ，σ 是**结构装饰噪声**。
+    #  注意：默认导电性评分用的是实验口径的成分带隙（附录 J），此时 σ 不表示
+    #  成分带隙自身的误差，而是"该候选的结构数据质量较低"的保守惩罚；
+    #  若用 --prefer-struct-gap，σ 则正好是结构带隙的不确定度。
+    df["ef_sigma_eV_atom"] = df["ef_ens_std_eV_atom"].fillna(0.0)
+    df["gap_sigma_eV"] = df["gap_ens_std_eV"].fillna(0.0)
+    df["stability_conservative_eV_atom"] = df["stability_eV_atom"] + df["ef_sigma_eV_atom"]
+    df["gap_conservative_eV"] = df["gap_eV"] + df["gap_sigma_eV"]
+
+    # ---- 评分（**层内百分位**：跨层不可比，故每层各自归一化；用 1σ 保守量） ----
     for col in ("pct_stability", "pct_conduction", "pct_capacity"):
         df[col] = np.nan
     for _tier, idx in df.groupby("structure_tier").groups.items():
         sub = df.loc[idx]
-        df.loc[idx, "pct_stability"] = (sub["stability_eV_atom"]
+        df.loc[idx, "pct_stability"] = (sub["stability_conservative_eV_atom"]
                                         .rank(pct=True, ascending=False) * 100)
-        df.loc[idx, "pct_conduction"] = (np.exp(-sub["gap_eV"].clip(lower=0))
+        df.loc[idx, "pct_conduction"] = (np.exp(-sub["gap_conservative_eV"].clip(lower=0))
                                          .rank(pct=True) * 100)
         df.loc[idx, "pct_capacity"] = (sub["Q_theoretical_mAh_g"]
                                        .rank(pct=True) * 100)
@@ -440,7 +472,7 @@ def main(argv=None) -> int:
     df.loc[df["structure_origin"] == "同构替换(CHGNet)",
            "flag"] += "结构为同构替换相(已验证与MP可比);"
     df.loc[df["structure_origin"] == "无序系综(CHGNet)",
-           "flag"] += "结构为无序系综代表(带装饰噪声误差条);"
+           "flag"] += "评分用系综均值(已含1σ保守惩罚);"
     df.loc[df["flag"] == "", "flag"] = "结构&成分一致"
 
     # ---- 分层产物（tier 已在前面算好，此处只做分组与排序） ----
@@ -472,7 +504,9 @@ def main(argv=None) -> int:
 
     OUT.mkdir(exist_ok=True)
     keep = ["rank", "name", "formula", "family", "structure_origin", "cgcnn_ef_eV_atom",
-            "ef_ens_std_eV_atom", "gap_ens_std_eV",
+            "ef_ens_std_eV_atom", "gap_ens_std_eV", "n_decorations",
+            "cgcnn_ef_best_member_eV_atom", "stability_conservative_eV_atom",
+            "gap_conservative_eV",
             "rank_struct", "rank_comp", "rank_shift", "gap_source", "gap_eV",
             "cgcnn_gap_eV", "comp_gap_eV", "gap_diff_eV", "voltage_source", "voltage_V",
             "Q_theoretical_mAh_g", "score", "flag", "struct_material_id"]
@@ -532,13 +566,19 @@ def main(argv=None) -> int:
         "n_from_mp_structure": int((df["structure_origin"] == "MP弛豫").sum()),
         "n_from_polymorph_substitution": int((df["structure_origin"] == "同构替换(CHGNet)").sum()),
         "n_from_ensemble": int((df["structure_origin"] == "无序系综(CHGNet)").sum()),
+        "scoring_mode": "conservative_1sigma",
         "decoration_noise": {
             "ef_std_mean_eV_atom": (None if df["ef_ens_std_eV_atom"].dropna().empty
                                     else round(float(df["ef_ens_std_eV_atom"].mean()), 4)),
             "gap_std_mean_eV": (None if df["gap_ens_std_eV"].dropna().empty
                                 else round(float(df["gap_ens_std_eV"].mean()), 4)),
-            "note": ("无序系综（随机装饰）带来的预测不确定度；"
-                     "稳定性可忽略，带隙需作为误差条引用"),
+            "n_ensemble_candidates": int(df["n_decorations"].notna().sum()),
+            "note": ("无序系综（随机装饰）带来的预测不确定度。评分为 1σ 保守口径："
+                     "稳定性取 mean+σ（更不稳定一侧）；导电性在带隙上加 σ，"
+                     "该 σ 是结构装饰噪声（默认评分用成分带隙时，它代表数据质量惩罚；"
+                     "配合 --prefer-struct-gap 时即为结构带隙的不确定度）。"
+                     "系综候选的稳定性/带隙点预测已改用**系综均值**，"
+                     "并保留 best-member 值供对照。"),
         },
         "polymorph_residual_uncertainty": {
             "n_compared": poly_unc.get("n_compared"),
