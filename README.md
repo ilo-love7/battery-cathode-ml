@@ -230,7 +230,7 @@ weights.
   title  = {Machine Learning for Battery Cathode Materials},
   author = {ilo-love7},
   year   = {2026},
-  note   = {version = {1.24.0}},
+  note   = {version = {1.25.0}},
   url    = {https://github.com/ilo-love7/battery-cathode-ml}
 }
 ```

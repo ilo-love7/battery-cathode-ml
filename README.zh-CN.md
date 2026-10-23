@@ -586,7 +586,7 @@ MP 拉取因需要 Key 不在 CI 跑，但**清洗规则有单元测试覆盖**�
   title = {Battery Cathode ML: Composition-based Property Prediction for Battery Cathodes},
   year = {2026},
   url = {https://github.com/ilo-love7/battery-cathode-ml},
-  version = {1.24.0}
+  version = {1.25.0}
 }
 ```
 

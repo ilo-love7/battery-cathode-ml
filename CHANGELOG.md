@@ -9,6 +9,17 @@
 
 ### 变更
 
+- README（英文主页）**新增** `## What you can do with this toolkit`：7 行「作业 → 真实入口」表 +
+  4 条典型用途 + 可复现性说明（作者模板一字未动，纯新增节）。
+- `## Sibling repositories` 补 `project-packer` 一行（此前缺，互链不闭合）；至此与其余 6 个仓库的
+  `Related repositories` / `关联仓库` 交叉链接表对齐。
+- **新增 `tests/test_readme_badges.py`（5 例）**：把「封面数字 == 产物」固化成测试 ——
+  电压 MAE ↔ `results/metrics_cgcnn_voltage.json`、形成能 ↔ `results/metrics_cgcnn.json`、
+  结构覆盖 ↔ `results/metrics_screening_struct.json`，以及 tests 徽章总数 ↔
+  `pytest --collect-only` 实测（子进程执行，剔除 `COV_CORE_*` 环境变量）。
+  两个已知陷阱固化在测试注释里：徽章值含括号（`0.352 V (two--tower CGCNN)`）时正则不能用
+  `[^)]*?`，必须锚定 label 前缀再贪婪到颜色词；`pytest --collect-only -q` 只按文件打印计数、
+  必须求和才是总数。该项使测试计数从 200 升到 **205**。
 - `src/annotate_reference.py` 新增 13 篇 **Crossref 实测核验**的锚点，覆盖 **15 条**记录：
   `citation_verified=True` 从 **18 条提到 33/39（85%）**；
   **已核验行涉及的 distinct DOI：9 → 22 个**（表内 distinct DOI 含未核验行引用的综述共 23 个）。
