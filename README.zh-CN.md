@@ -548,7 +548,7 @@ battery-cathode-ml/
 
 ```bash
 python -m compileall -q src tests run_pipeline.py setup.py   # 语法门禁
-pytest tests/ -v                                             # 200 个测试
+pytest tests/ -v                                             # 205 个测试
 pytest tests/ --cov=src --cov-report=term-missing            # 覆盖率
 black src tests && flake8 src tests                          # 风格
 

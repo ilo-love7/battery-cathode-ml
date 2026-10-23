@@ -7,7 +7,7 @@
 ![voltage](https://img.shields.io/badge/voltage%20MAE-0.352%20V%20(two--tower%20CGCNN)-brightgreen)
 ![formation energy](https://img.shields.io/badge/formation%20energy-0.0401%20eV%2Fcell-brightgreen)
 ![structure coverage](https://img.shields.io/badge/structure%20coverage-40%2F40-blue)
-![tests](https://img.shields.io/badge/tests-200%20(199%20pass%20%2B%201%20skip)-orange)
+![tests](https://img.shields.io/badge/tests-205%20(204%20pass%20%2B%201%20skip)-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
@@ -88,7 +88,7 @@ regression task; (3) a **worked example of documenting negative results** — si
 its evidence; (4) **teaching material** for multi-objective decisions, where a single score is
 provably arbitrary.
 
-Reproducibility: `pytest tests -q` (**200 tests: 199 pass + 1 conditional skip**) needs no API key and
+Reproducibility: `pytest tests -q` (**205 tests: 204 pass + 1 conditional skip**) needs no API key and
 no raw dataset download — the cleaned MP data, the MP Li structures and the demo structure/pair files
 are committed. CI runs 8 jobs (ubuntu + windows × Python 3.9 / 3.11 / 3.12), green on every release.
 
@@ -133,7 +133,7 @@ are committed. CI runs 8 jobs (ubuntu + windows × Python 3.9 / 3.11 / 3.12), gr
 │   └── cathode_candidates.csv   #   40 candidate cathodes
 ├── docs/项目报告.md              # full report with appendices A–W
 ├── results/                     # metrics JSON / figures / model weights (pkl files stay out of git)
-└── tests/                       # 198 tests (197 pass + 1 conditional skip)
+└── tests/                       # 205 tests (204 pass + 1 conditional skip)
 ```
 
 ## Quick start
@@ -141,7 +141,7 @@ are committed. CI runs 8 jobs (ubuntu + windows × Python 3.9 / 3.11 / 3.12), gr
 ```bash
 # 0) environment — no API key and no raw datasets required
 pip install -r requirements.txt
-pytest tests -q                        # 198 tests
+pytest tests -q                        # 205 tests
 
 # 1) offline pipeline (exactly what CI runs)
 python src/train_voltage.py --data data/processed/mp_voltage.csv --tag voltage
@@ -195,7 +195,7 @@ D:\venvs\bcm-cgcnn\Scripts\python src/screening_struct.py
 
 ## Verification and provenance
 
-- **198 tests** (197 pass + 1 conditional skip); CI runs **8 jobs** (ubuntu × windows, Python 3.9 / 3.11 / 3.12),
+- **205 tests** (204 pass + 1 conditional skip); CI runs **8 jobs** (ubuntu × windows, Python 3.9 / 3.11 / 3.12),
   green on every release.
 - **Two guard rails enforced by source-level assertions** rather than review: a partially-run script must rename its
   artifacts (`*_smoke` / `*_<profile>` / `*_validation`) so it cannot overwrite full results; and CLI scripts must keep
