@@ -22,6 +22,15 @@ v1.18.0 的溯源只是"规则分级"（厂商/综述/估算三档），并不�
 | 层状 LiMnO2 | Armstrong & Bruce, *Nature* **381**, 499 (1996) | `10.1038/381499a0` |
 | 硅酸铁锂 Li2FeSiO4 | Nytén et al., *Electrochem. Commun.* **7**, 156 (2005) | `10.1016/j.elecom.2004.11.008` |
 | 磷酸钒锂 Li3V2(PO4)3 | Huang, Yin, Kerr, Taylor & Nazar, *Adv. Mater.* **14**, 1525 (2002) | `10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3` |
+| 二硫化钒 VS2 | Murphy, Di Salvo & Carides, *J. Solid State Chem.* **29**, 339 (1979) | `10.1016/0022-4596(79)90190-7` |
+| 二硫化钼 MoS2 | Whittingham & Gamble, *Mater. Res. Bull.* (1975) | `10.1016/0025-5408(75)90006-9` |
+| 氟磷酸钒锂 LiVPO4F | Barker, Saidi & Swoyer, *J. Electrochem. Soc.* **150**, A1394 (2003) | `10.1149/1.1609998` |
+| 磷酸氟铁锂 Li2FePO4F | Ellis, Makahnouk, Makimura, Toghill & Nazar, *Nat. Mater.* (2007) | `10.1038/nmat2007` |
+| 硅酸锰锂 Li2MnSiO4 | Dominko et al., *Electrochem. Commun.* (2006) | `10.1016/j.elecom.2005.11.010` |
+| 硅酸钴锂 Li2CoSiO4 | Lyness, Delobel, Armstrong & Bruce, *Chem. Commun.* (2007) | `10.1039/b711552k` |
+| 层状钒氧化物 LiV3O8 | Panero, Pasquali & Pistoia, *J. Electrochem. Soc.* (1983) | `10.1149/1.2119923` |
+| 高压尖晶石 LiNi0.5Mn1.5O4 | Zhong, Bonakdarpour, Zhang, Gao & Dahn, *J. Electrochem. Soc.* **144**, 205 (1997) | `10.1149/1.1837386` |
+| 高压尖晶石 LiCoMnO4 | Kawai, Nagata, Kageyama, Tukamoto & West, *Electrochim. Acta* (1999) | `10.1016/S0013-4686(99)00213-3` |
 
 `citation_verified` 的含义是**"该文献是否直接覆盖该材料"**（不是"是否有引用"）：
 
@@ -78,6 +87,27 @@ NYTEN2005 = ("Nytén, Abouimrane, Armand, Gustafsson & Thomas,"
 HUANG2002 = ("Huang, Yin, Kerr, Taylor & Nazar, Adv. Mater. 14, 1525 (2002)"
              "（Li3V2(PO4)3 原创正极工作）",
              "10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3")
+MURPHY1979 = ("Murphy, Di Salvo & Carides, J. Solid State Chem. 29, 339 (1979)"
+              "（VS2 锂嵌入）", "10.1016/0022-4596(79)90190-7")
+WHITTINGHAM1975 = ("Whittingham & Gamble, Mater. Res. Bull. (1975)"
+                   "（过渡金属二硫属化物锂嵌入，含 MoS2）",
+                   "10.1016/0025-5408(75)90006-9")
+BARKER2003 = ("Barker, Saidi & Swoyer, J. Electrochem. Soc. 150, A1394 (2003)",
+              "10.1149/1.1609998")
+ELLIS2007 = ("Ellis, Makahnouk, Makimura, Toghill & Nazar, Nat. Mater. (2007)",
+             "10.1038/nmat2007")
+DOMINKO2006 = ("Dominko et al., Electrochem. Commun. (2006)"
+               "（Li2MnSiO4 / Li2FeSiO4 结构与电化学）",
+               "10.1016/j.elecom.2005.11.010")
+LYNESS2007 = ("Lyness, Delobel, Armstrong & Bruce, Chem. Commun. (2007)",
+              "10.1039/b711552k")
+PANERO1983 = ("Panero, Pasquali & Pistoia, J. Electrochem. Soc. (1983)"
+              "（Li/Li1+xV3O8 电池）", "10.1149/1.2119923")
+ZHONG1997 = ("Zhong, Bonakdarpour, Zhang, Gao & Dahn,"
+             " J. Electrochem. Soc. 144, 205 (1997)", "10.1149/1.1837386")
+KAWAI1999 = ("Kawai, Nagata, Kageyama, Tukamoto & West,"
+             " Electrochim. Acta (1999)（Li2Co1+xMn3-xO8 固溶体含 LiCoMnO4）",
+             "10.1016/S0013-4686(99)00213-3")
 
 # 材料 -> (引用, DOI, 是否核验)
 CITATIONS = {
@@ -98,23 +128,24 @@ CITATIONS = {
     "LiNi0.8Co0.15Al0.05O2": (MANTHIRAM, False),
     "LiMnO2": (ARMSTRONG1996, True),
     "LiCrO2": (MANTHIRAM, False),
-    "LiNi0.5Mn1.5O4": (MANTHIRAM, False),
-    "LiCoMnO4": (MANTHIRAM, False),
-    "LiV3O8": (MANTHIRAM, False),
+    "LiNi0.5Mn1.5O4": (ZHONG1997, True),
+    "LiCoMnO4": (KAWAI1999, True),
+    "LiV3O8": (PANERO1983, True),
     "LiFeSO4F": (BARPANDA, True),
-    "LiVPO4F": (MANTHIRAM, False),
-    "Li2FePO4F": (MANTHIRAM, False),
+    "LiVPO4F": (BARKER2003, True),
+    "Li2FePO4F": (ELLIS2007, True),
     "LiFeP2O7": (MANTHIRAM, False),
     "Li3V2(PO4)3": (HUANG2002, True),
     "Li2FeSiO4": (NYTEN2005, True),
-    "Li2MnSiO4": (MANTHIRAM, False),
-    "Li2CoSiO4": (MANTHIRAM, False),
+    "Li2MnSiO4": (DOMINKO2006, True),
+    "Li2CoSiO4": (LYNESS2007, True),
     "Li1.2Mn0.4Ti0.4O2": (LEE, True),
     "Li1.2Mn0.4Zr0.4O2": (LEE, True),
     "Li1.3Mn0.4Nb0.3O2": (LEE, True),
     "Li1.2Mn0.4Nb0.4O2": (LEE, True),
     # 层状硫化物：Whittingham 1976 Science（插层化学的奠基工作，TiS2 为主）
-    "TiS2": (WHITTINGHAM, True), "VS2": (WHITTINGHAM, False), "MoS2": (WHITTINGHAM, False),
+    "TiS2": (WHITTINGHAM, True), "VS2": (MURPHY1979, True),
+    "MoS2": (WHITTINGHAM1975, True),
     # 富锂锰基：Thackeray 2007 J. Mater. Chem.
     "Li1.2Ni0.13Co0.13Mn0.54O2": (THACKERAY2007, True),
     "Li1.2Ni0.2Mn0.6O2": (THACKERAY2007, True),
@@ -124,7 +155,9 @@ CITATIONS = {
 VERIFIED_DOIS = {PADHI[1], MIZUSHIMA[1], THACKERAY[1], OHZUKU[1], LEE[1],
                  BARPANDA[1], MANTHIRAM[1], WHITTINGHAM[1], THACKERAY2007[1],
                  OHZUKU1991[1], NOH2013[1], ARMSTRONG1996[1], NYTEN2005[1],
-                 HUANG2002[1]}
+                 HUANG2002[1], MURPHY1979[1], WHITTINGHAM1975[1], BARKER2003[1],
+                 ELLIS2007[1], DOMINKO2006[1], LYNESS2007[1], PANERO1983[1],
+                 ZHONG1997[1], KAWAI1999[1]}
 
 
 def main(argv=None) -> int:

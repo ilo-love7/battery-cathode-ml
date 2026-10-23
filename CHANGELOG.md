@@ -5,12 +5,13 @@
 
 ## [1.25.0] - 2026-10-23
 
-**参考表溯源：Crossref 实测新增 4 篇锚点文献，已核验 18/39 → 24/39（62%）。**
+**参考表溯源：Crossref 实测新增 13 篇锚点文献，已核验记录 18 → 33 条（46% → 85%）。**
 
 ### 变更
 
-- `src/annotate_reference.py` 新增 4 篇 **Crossref 实测核验**的锚点，`citation_verified=True`
-  的记录 **18 → 24 条（46% → 62%）**，唯一 DOI **10 → 14 个**：
+- `src/annotate_reference.py` 新增 13 篇 **Crossref 实测核验**的锚点，覆盖 **15 条**记录：
+  `citation_verified=True` 从 **18 条提到 33/39（85%）**；
+  **已核验行涉及的 distinct DOI：9 → 22 个**（表内 distinct DOI 含未核验行引用的综述共 23 个）。
 
   | 锚点 | DOI | 覆盖材料 |
   |---|---|---|
@@ -18,18 +19,30 @@
   | Armstrong & Bruce, *Nature* **381**, 499 (1996) | `10.1038/381499a0` | 正交 LiMnO2 |
   | Nytén, Abouimrane, Armand, Gustafsson & Thomas, *Electrochem. Commun.* **7**, 156 (2005) | `10.1016/j.elecom.2004.11.008` | Li2FeSiO4 |
   | Huang, Yin, Kerr, Taylor & Nazar, *Adv. Mater.* **14**, 1525 (2002) | `10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3` | Li3V2(PO4)3 |
+  | Murphy, Di Salvo & Carides, *J. Solid State Chem.* **29**, 339 (1979) | `10.1016/0022-4596(79)90190-7` | VS2 |
+  | Whittingham & Gamble, *Mater. Res. Bull.* (1975) | `10.1016/0025-5408(75)90006-9` | MoS2（过渡金属二硫属化物嵌入） |
+  | Barker, Saidi & Swoyer, *J. Electrochem. Soc.* **150**, A1394 (2003) | `10.1149/1.1609998` | LiVPO4F |
+  | Ellis, Makahnouk, Makimura, Toghill & Nazar, *Nat. Mater.* (2007) | `10.1038/nmat2007` | Li2FePO4F |
+  | Dominko et al., *Electrochem. Commun.* (2006) | `10.1016/j.elecom.2005.11.010` | Li2MnSiO4 |
+  | Lyness, Delobel, Armstrong & Bruce, *Chem. Commun.* (2007) | `10.1039/b711552k` | Li2CoSiO4 |
+  | Panero, Pasquali & Pistoia, *J. Electrochem. Soc.* (1983) | `10.1149/1.2119923` | LiV3O8 |
+  | Zhong, Bonakdarpour, Zhang, Gao & Dahn, *J. Electrochem. Soc.* **144**, 205 (1997) | `10.1149/1.1837386` | LiNi0.5Mn1.5O4 |
+  | Kawai, Nagata, Kageyama, Tukamoto & West, *Electrochim. Acta* (1999) | `10.1016/S0013-4686(99)00213-3` | LiCoMnO4（Li2Co1+xMn3-xO8 固溶体） |
 
 - 每条 DOI 都用 `api.crossref.org` 实测，**title / journal / year 逐项对得上**才写入。
-  反例留档：`LiNi0.8Co0.1Mn0.1O2` 的首猜 DOI `10.1016/j.jpowsour.2012.12.095` 实测是
-  Zaghib 等的**橄榄石综述**，与 NMC811 无关 → 弃用，改用 Noh 2013。
-  **"查得到"不等于"对得上"；对不上就保持未核验，不为覆盖率编 DOI。**
-- 仍未核验的 **15 条**（LiCrO2 / 超高镍 NMC90 / NCA / LiNi0.4Co0.2Mn0.4O2 /
-  LiNi0.4Co0.3Mn0.3O2 / 高压尖晶石 LiNi0.5Mn1.5O4 与 LiCoMnO4 / LiV3O8 / LiVPO4F /
-  Li2FePO4F / LiFeP2O7 / Li2MnSiO4 / Li2CoSiO4 / VS2 / MoS2）继续显式标注 `False`。
-- 连带重跑 `src/calibrate_weights.py`：`uncertainty_pct` 随核验下降，逐行不确定度均值
-  **16.9%**，先验 ρ=-0.1415 → 校准 ρ=0.4591（结论方向不变）。
-- 测试数不变（**205**，204 通过 + 1 条件跳过）；`test_citation_coverage_improved` 的
-  核验下限与唯一 DOI 下限随真实产物提升（18→24 / 9→13）。
+  **"查得到" ≠ "对得上"** —— 弃用留档：
+  1. `LiNi0.8Co0.1Mn0.1O2` 首猜 `10.1016/j.jpowsour.2012.12.095` 实测是 Zaghib 等的
+     **橄榄石综述**，与 NMC811 无关 → 改用 Noh 2013；
+  2. `LiFeP2O7` 候选 `10.1016/s0167-2738(96)00472-9`（Nanjundaswamy 1996）标题是
+     **NASICON 相关 3D 框架化合物**，不特定于 LiFeP2O7 → **保持未核验**；
+  3. `LiNi0.8Co0.15Al0.05O2`（NCA）候选 Guilmard 2003 `10.1149/1.1601227` 实测是
+     **Mn 取代 LiNiO2**，不是 NCA → **保持未核验**。
+- **仍未核验的 6 条**（LiCrO2 / LiFeP2O7 / NCA / 超高镍 NMC90 / NMC424 / NMC433）继续显式
+  标注 `citation_verified=False`，原因逐条写在 `docs/项目报告.md` 附录 X。
+- 连带重跑 `src/calibrate_weights.py`：逐行不确定度均值 **15.6%**，先验 ρ=-0.1415 →
+  校准 ρ=0.4591（结论方向不变）。
+- 测试数不变（**205**，204 通过 + 1 条件跳过）；`test_citation_coverage_improved` 的下限
+  随真实产物提升：已核验行数 18 → **33**、已核验行 distinct DOI 9 → **22**。
 - README.md / README.zh-CN.md / docs/项目报告.md（新增附录 X）同步新数字。
 - 版本 1.24.0 → 1.25.0
 

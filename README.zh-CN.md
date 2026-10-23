@@ -510,7 +510,7 @@ battery-cathode-ml/
 │   ├── drx_ensemble.py          # ★ 无序系综（随机装饰 + 误差条）
 │   ├── local_conformal.py       # ★ 局部自适应区间 + 条件覆盖率（按体系族）
 │   ├── calibrate_weights.py     # ★ 多元外部标签校准评分权重（含自助法区间）
-│   ├── annotate_reference.py    # ★ 参考表逐条引用（DOI 经 Crossref 核验，24/39）
+│   ├── annotate_reference.py    # ★ 参考表逐条引用（DOI 经 Crossref 核验，33/39）
 │   ├── pareto_interactive.py    # ★ 偏好驱动的 Pareto 最优子集
 │   ├── resource_risk.py         # ★ 资源供应风险与毒性（序数打分）
 │   ├── build_voltage_pairs.py   # ★ 构造两相（提升覆盖率；残差 0.35V，默认不用于评分）

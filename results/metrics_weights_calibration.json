@@ -65,7 +65,7 @@
   "weight_uncertainty_bootstrap": {
     "n_resamples": 60,
     "noise": "per_row_uncertainty_pct",
-    "mean_uncertainty_pct": 16.92,
+    "mean_uncertainty_pct": 15.64,
     "provenance_counts": {
       "同行综述典型值": 14,
       "厂商数据手册典型值": 13,
@@ -76,13 +76,13 @@
         "median": 0.35,
         "p05": 0.2,
         "p95": 0.55,
-        "share_equal_to_best": 0.267
+        "share_equal_to_best": 0.283
       },
       "conduction": {
         "median": 0.1,
         "p05": 0.1,
         "p95": 0.25,
-        "share_equal_to_best": 0.567
+        "share_equal_to_best": 0.583
       },
       "capacity": {
         "median": 0.4,

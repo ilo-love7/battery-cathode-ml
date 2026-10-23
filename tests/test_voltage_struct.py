@@ -963,11 +963,14 @@ class TestRegulationScenariosAndCitations:
 
     def test_citation_coverage_improved(self):
         d = pd.read_csv(self.REF, encoding="utf-8-sig")
-        # v1.22.0 下限 18；v1.25.0 又核验 6 条（Noh 2013 / Armstrong 1996 /
-        # Nytén 2005 / Huang 2002），下限随真实产物提升到 24，防止回退。
-        assert int(d["citation_verified"].sum()) >= 24
-        dois = {x for x in d["doi"].astype(str) if x}
-        assert len(dois) >= 13, f"唯一 DOI 太少: {len(dois)}"
+        # v1.22.0 下限 18；v1.25.0 又核验 15 条（Noh 2013 / Armstrong 1996 / Nytén 2005 /
+        # Huang 2002 / Murphy 1979 / Whittingham 1975 / Barker 2003 / Ellis 2007 /
+        # Dominko 2006 / Lyness 2007 / Panero 1983 / Zhong 1997 / Kawai 1999），
+        # 下限随真实产物提升到 33，防止回退。
+        assert int(d["citation_verified"].sum()) >= 33
+        # 口径：只数 citation_verified=True 的行 —— 未核验行也带 DOI（家族/综述），不能算数。
+        dois = set(d.loc[d["citation_verified"], "doi"].astype(str)) - {""}
+        assert len(dois) >= 22, f"已核验行的 distinct DOI 太少: {len(dois)}"
 
     def test_regulation_scenarios_exist_and_are_documented(self):
         src = open(self.SRC, encoding="utf-8").read()
