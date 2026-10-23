@@ -67,6 +67,31 @@ Two further structural findings:
   discriminating. The answer is **hard feasibility constraints first** (Co ≤ 0.10, toxicity ≤ 2, ≤ 4.5 V,
   ≥ 120 mAh/g → 40 → 20 candidates), then preferences.
 
+## What you can do with this toolkit
+
+Seven concrete jobs, each with a runnable entry point. The pipeline is offline; only the optional
+structure / MLIP track needs a GPU and an API key.
+
+| Job | Entry point |
+|---|---|
+| **Screen a candidate list into a ranked, risk-flagged shortlist** | [src/screening_struct.py](src/screening_struct.py) (structure-driven, GPU track) · [src/predictor.py](src/predictor.py) `--top 10 --min-voltage 3.0 --max-voltage 5.0` |
+| **Predict band gap, formation energy and voltage for any formula** | [src/predictor.py](src/predictor.py) `--formulas "LiFePO4,LiCoO2,LiMn2O4"` · [src/predict_voltage_cgcnn.py](src/predict_voltage_cgcnn.py) |
+| **Predict from a crystal structure instead of a formula** | [src/predict_cgcnn.py](src/predict_cgcnn.py) `--structures data/raw/mp_structures_cathodes.json.gz` (10 committed cathodes, offline) |
+| **Put an error bar on any prediction** | [src/conformal.py](src/conformal.py) · [src/local_conformal.py](src/local_conformal.py) · [src/drx_ensemble.py](src/drx_ensemble.py) |
+| **Decide under hard feasibility constraints, not just weights** | [src/pareto_interactive.py](src/pareto_interactive.py) `--constraints default` (40 → 20 candidates) · `--scenario eu2031 / eu2036 / strict` |
+| **Audit where every number comes from** | [data/reference_cathodes.csv](data/reference_cathodes.csv) (per-row citation + uncertainty; 18/39 Crossref-verified) · [src/annotate_reference.py](src/annotate_reference.py) |
+| **Re-derive the published metrics end to end** | `python run_pipeline.py` · [src/validate_known_cathodes.py](src/validate_known_cathodes.py) (12 literature cathodes, MAE 0.160 V) |
+
+Typical uses: (1) a **screening baseline** for a new cathode candidate list; (2) a **reusable
+uncertainty stack** (split conformal + locally-adaptive intervals) you can lift into another
+regression task; (3) a **worked example of documenting negative results** — six of them, each with
+its evidence; (4) **teaching material** for multi-objective decisions, where a single score is
+provably arbitrary.
+
+Reproducibility: `pytest tests -q` (**200 tests: 199 pass + 1 conditional skip**) needs no API key and
+no raw dataset download — the cleaned MP data, the MP Li structures and the demo structure/pair files
+are committed. CI runs 8 jobs (ubuntu + windows × Python 3.9 / 3.11 / 3.12), green on every release.
+
 ## How to use this repository
 
 | If you are… | Route | Entry point |
