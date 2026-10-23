@@ -79,7 +79,7 @@ structure / MLIP track needs a GPU and an API key.
 | **Predict from a crystal structure instead of a formula** | [src/predict_cgcnn.py](src/predict_cgcnn.py) `--structures data/raw/mp_structures_cathodes.json.gz` (10 committed cathodes, offline) |
 | **Put an error bar on any prediction** | [src/conformal.py](src/conformal.py) · [src/local_conformal.py](src/local_conformal.py) · [src/drx_ensemble.py](src/drx_ensemble.py) |
 | **Decide under hard feasibility constraints, not just weights** | [src/pareto_interactive.py](src/pareto_interactive.py) `--constraints default` (40 → 20 candidates) · `--scenario eu2031 / eu2036 / strict` |
-| **Audit where every number comes from** | [data/reference_cathodes.csv](data/reference_cathodes.csv) (per-row citation + uncertainty; 18/39 Crossref-verified) · [src/annotate_reference.py](src/annotate_reference.py) |
+| **Audit where every number comes from** | [data/reference_cathodes.csv](data/reference_cathodes.csv) (per-row citation + uncertainty; 24/39 Crossref-verified) · [src/annotate_reference.py](src/annotate_reference.py) |
 | **Re-derive the published metrics end to end** | `python run_pipeline.py` · [src/validate_known_cathodes.py](src/validate_known_cathodes.py) (12 literature cathodes, MAE 0.160 V) |
 
 Typical uses: (1) a **screening baseline** for a new cathode candidate list; (2) a **reusable
@@ -190,7 +190,7 @@ D:\venvs\bcm-cgcnn\Scripts\python src/screening_struct.py
   order is not modelled.
 - **Screening is at material level.** No Li-content variation, voltage curves, kinetics, electrolyte compatibility,
   cost curves or manufacturability.
-- **The reference performance table is literature-typical.** 18/39 entries carry a Crossref-verified DOI; the rest are
+- **The reference performance table is literature-typical.** 24/39 entries carry a Crossref-verified DOI; the rest are
   review-level and explicitly marked as unverified.
 
 ## Verification and provenance

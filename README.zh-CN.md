@@ -94,7 +94,7 @@ python run_pipeline.py
 - 输出排序表 + 家族着色排名图
 
 ### 🧪 **工程化**
-- 200 个单元测试（199 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
+- 205 个单元测试（204 通过 + 1 个条件跳过），含特征列顺序回归、元素表完整性、文档一致性、MP 数据清洗、多目标、结构描述符、conformal 覆盖率、晶体图构建、电压结构特征、torch 延迟导入约束、demo 电极对 schema、结构筛选三层产物契约、结构带隙模型契约与原型结构生成/占位语义
 - GitHub Actions：Linux/Windows × Python 3.9/3.11/3.12，含语法门禁与端到端 smoke test
 - Issue / PR 模板、pre-commit、MIT License
 
@@ -510,7 +510,7 @@ battery-cathode-ml/
 │   ├── drx_ensemble.py          # ★ 无序系综（随机装饰 + 误差条）
 │   ├── local_conformal.py       # ★ 局部自适应区间 + 条件覆盖率（按体系族）
 │   ├── calibrate_weights.py     # ★ 多元外部标签校准评分权重（含自助法区间）
-│   ├── annotate_reference.py    # ★ 参考表逐条引用（DOI 经 Crossref 核验）
+│   ├── annotate_reference.py    # ★ 参考表逐条引用（DOI 经 Crossref 核验，24/39）
 │   ├── pareto_interactive.py    # ★ 偏好驱动的 Pareto 最优子集
 │   ├── resource_risk.py         # ★ 资源供应风险与毒性（序数打分）
 │   ├── build_voltage_pairs.py   # ★ 构造两相（提升覆盖率；残差 0.35V，默认不用于评分）
@@ -519,7 +519,7 @@ battery-cathode-ml/
 │   ├── fetch_mp_data.py         # MP API 拉取（通用摘要版）
 │   └── export_cgcnn.py          # 导出 CGCNN 训练目录
 ├── examples/01_getting_started.ipynb
-├── tests/                       # 200 个单元测试
+├── tests/                       # 205 个单元测试
 ├── results/                     # 指标 / 图 / 模型（pkl 不入库）
 ├── docs/项目报告.md              # 方法、结果与误差分析
 └── .github/                     # Issue/PR 模板 + CI

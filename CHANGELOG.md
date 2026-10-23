@@ -3,6 +3,36 @@
 本文件记录项目的所有重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.25.0] - 2026-10-23
+
+**参考表溯源：Crossref 实测新增 4 篇锚点文献，已核验 18/39 → 24/39（62%）。**
+
+### 变更
+
+- `src/annotate_reference.py` 新增 4 篇 **Crossref 实测核验**的锚点，`citation_verified=True`
+  的记录 **18 → 24 条（46% → 62%）**，唯一 DOI **10 → 14 个**：
+
+  | 锚点 | DOI | 覆盖材料 |
+  |---|---|---|
+  | Noh, Youn, Yoon & Sun, *J. Power Sources* **233**, 121 (2013) | `10.1016/j.jpowsour.2013.01.063` | NMC x = 0.5 / 0.6 / 0.8（NMC523 / NMC622 / NMC811） |
+  | Armstrong & Bruce, *Nature* **381**, 499 (1996) | `10.1038/381499a0` | 正交 LiMnO2 |
+  | Nytén, Abouimrane, Armand, Gustafsson & Thomas, *Electrochem. Commun.* **7**, 156 (2005) | `10.1016/j.elecom.2004.11.008` | Li2FeSiO4 |
+  | Huang, Yin, Kerr, Taylor & Nazar, *Adv. Mater.* **14**, 1525 (2002) | `10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3` | Li3V2(PO4)3 |
+
+- 每条 DOI 都用 `api.crossref.org` 实测，**title / journal / year 逐项对得上**才写入。
+  反例留档：`LiNi0.8Co0.1Mn0.1O2` 的首猜 DOI `10.1016/j.jpowsour.2012.12.095` 实测是
+  Zaghib 等的**橄榄石综述**，与 NMC811 无关 → 弃用，改用 Noh 2013。
+  **"查得到"不等于"对得上"；对不上就保持未核验，不为覆盖率编 DOI。**
+- 仍未核验的 **15 条**（LiCrO2 / 超高镍 NMC90 / NCA / LiNi0.4Co0.2Mn0.4O2 /
+  LiNi0.4Co0.3Mn0.3O2 / 高压尖晶石 LiNi0.5Mn1.5O4 与 LiCoMnO4 / LiV3O8 / LiVPO4F /
+  Li2FePO4F / LiFeP2O7 / Li2MnSiO4 / Li2CoSiO4 / VS2 / MoS2）继续显式标注 `False`。
+- 连带重跑 `src/calibrate_weights.py`：`uncertainty_pct` 随核验下降，逐行不确定度均值
+  **16.9%**，先验 ρ=-0.1415 → 校准 ρ=0.4591（结论方向不变）。
+- 测试数不变（**205**，204 通过 + 1 条件跳过）；`test_citation_coverage_improved` 的
+  核验下限与唯一 DOI 下限随真实产物提升（18→24 / 9→13）。
+- README.md / README.zh-CN.md / docs/项目报告.md（新增附录 X）同步新数字。
+- 版本 1.24.0 → 1.25.0
+
 ## [1.24.0] - 2026-10-21
 
 **仓库主页按作者其他仓库的模板重排：英文 README + 中文 README.zh-CN.md。**

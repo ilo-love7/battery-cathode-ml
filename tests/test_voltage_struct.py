@@ -963,9 +963,11 @@ class TestRegulationScenariosAndCitations:
 
     def test_citation_coverage_improved(self):
         d = pd.read_csv(self.REF, encoding="utf-8-sig")
-        assert int(d["citation_verified"].sum()) >= 18
+        # v1.22.0 下限 18；v1.25.0 又核验 6 条（Noh 2013 / Armstrong 1996 /
+        # Nytén 2005 / Huang 2002），下限随真实产物提升到 24，防止回退。
+        assert int(d["citation_verified"].sum()) >= 24
         dois = {x for x in d["doi"].astype(str) if x}
-        assert len(dois) >= 9, f"唯一 DOI 太少: {len(dois)}"
+        assert len(dois) >= 13, f"唯一 DOI 太少: {len(dois)}"
 
     def test_regulation_scenarios_exist_and_are_documented(self):
         src = open(self.SRC, encoding="utf-8").read()

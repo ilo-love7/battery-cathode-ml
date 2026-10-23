@@ -1,12 +1,12 @@
 ﻿name,formula,voltage_practical_V,capacity_practical_mAh_g,cycle_life_cycles,rate_retention_pct,cost_index,thermal_onset_C,source_note,source_type,uncertainty_pct,citation,doi,citation_verified
 钴酸锂,LiCoO2,3.9,140,800,80,55,190,商用材料，规格区间较窄,厂商数据手册典型值,10,"Mizushima, Jones, Wiseman & Goodenough, Mater. Res. Bull. 15, 783 (1980)",10.1016/0025-5408(80)90012-4,True
 镍酸锂,LiNiO2,3.8,200,300,75,40,170,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Ohzuku et al., J. Electrochem. Soc. 138, 2207 (1991)（Crossref 收录为 ChemInform 摘要）",10.1002/chin.199345021,True
-正交锰酸锂,LiMnO2,3.5,150,200,60,10,230,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
+正交锰酸锂,LiMnO2,3.5,150,200,60,10,230,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Armstrong & Bruce, Nature 381, 499 (1996)",10.1038/381499a0,True
 铬酸锂,LiCrO2,3.0,100,300,50,15,250,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
 NMC111,LiNi0.333Co0.333Mn0.334O2,3.7,160,1200,85,30,210,商用材料，规格区间较窄,厂商数据手册典型值,10,"Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",10.1246/cl.2001.642,True
-NMC523,LiNi0.5Co0.2Mn0.3O2,3.7,170,1000,85,29,205,商用材料，规格区间较窄,厂商数据手册典型值,20,"Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",10.1246/cl.2001.642,False
-NMC622,LiNi0.6Co0.2Mn0.2O2,3.7,175,900,85,28,200,商用材料，规格区间较窄,厂商数据手册典型值,20,"Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",10.1246/cl.2001.642,False
-NMC811,LiNi0.8Co0.1Mn0.1O2,3.8,200,700,88,27,185,商用材料，规格区间较窄,厂商数据手册典型值,20,"Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",10.1246/cl.2001.642,False
+NMC523,LiNi0.5Co0.2Mn0.3O2,3.7,170,1000,85,29,205,商用材料，规格区间较窄,厂商数据手册典型值,10,"Noh, Youn, Yoon & Sun, J. Power Sources 233, 121 (2013)（NMC x = 0.5 / 0.6 / 0.8 对比）",10.1016/j.jpowsour.2013.01.063,True
+NMC622,LiNi0.6Co0.2Mn0.2O2,3.7,175,900,85,28,200,商用材料，规格区间较窄,厂商数据手册典型值,10,"Noh, Youn, Yoon & Sun, J. Power Sources 233, 121 (2013)（NMC x = 0.5 / 0.6 / 0.8 对比）",10.1016/j.jpowsour.2013.01.063,True
+NMC811,LiNi0.8Co0.1Mn0.1O2,3.8,200,700,88,27,185,商用材料，规格区间较窄,厂商数据手册典型值,10,"Noh, Youn, Yoon & Sun, J. Power Sources 233, 121 (2013)（NMC x = 0.5 / 0.6 / 0.8 对比）",10.1016/j.jpowsour.2013.01.063,True
 超高镍NMC90,LiNi0.9Co0.05Mn0.05O2,3.8,210,500,88,26,175,商用材料，规格区间较窄,厂商数据手册典型值,20,"Ohzuku & Makimura, Chem. Lett. 30, 642 (2001)",10.1246/cl.2001.642,False
 NCA,LiNi0.8Co0.15Al0.05O2,3.7,200,800,88,28,180,商用材料，规格区间较窄,厂商数据手册典型值,20,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
 富锂锰基A,Li1.2Ni0.13Co0.13Mn0.54O2,3.6,250,300,70,24,195,研究热点，不同报道差异中等,同行综述典型值,10,"Thackeray et al., J. Mater. Chem. 17, 3112 (2007)",10.1039/b702425h,True
@@ -20,8 +20,8 @@ NCA,LiNi0.8Co0.15Al0.05O2,3.7,200,800,88,28,180,商用材料，规格区间较�
 磷酸镍锂,LiNiPO4,5.1,80,100,40,18,180,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Padhi, Nanjundaswamy & Goodenough, J. Electrochem. Soc. 144, 1188 (1997)",10.1149/1.1837571,True
 LMFP,LiMn0.6Fe0.4PO4,3.8,150,1500,85,4,265,商用材料，规格区间较窄,厂商数据手册典型值,10,"Padhi, Nanjundaswamy & Goodenough, J. Electrochem. Soc. 144, 1188 (1997)",10.1149/1.1837571,True
 LMFP-8020,LiMn0.8Fe0.2PO4,4.0,145,1000,80,4,260,商用材料，规格区间较窄,厂商数据手册典型值,10,"Padhi, Nanjundaswamy & Goodenough, J. Electrochem. Soc. 144, 1188 (1997)",10.1149/1.1837571,True
-磷酸钒锂,Li3V2(PO4)3,3.8,130,800,85,12,250,研究热点，不同报道差异中等,同行综述典型值,20,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
-硅酸铁锂,Li2FeSiO4,2.8,150,200,60,5,250,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
+磷酸钒锂,Li3V2(PO4)3,3.8,130,800,85,12,250,研究热点，不同报道差异中等,同行综述典型值,10,"Huang, Yin, Kerr, Taylor & Nazar, Adv. Mater. 14, 1525 (2002)（Li3V2(PO4)3 原创正极工作）",10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3,True
+硅酸铁锂,Li2FeSiO4,2.8,150,200,60,5,250,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Nytén, Abouimrane, Armand, Gustafsson & Thomas, Electrochem. Commun. 7, 156 (2005)",10.1016/j.elecom.2004.11.008,True
 硅酸锰锂,Li2MnSiO4,2.8,160,100,55,6,240,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
 硅酸钴锂,Li2CoSiO4,2.7,120,100,50,18,230,早期探索阶段，报道差异大,本文估算（文献区间中值）,25,"Manthiram, Nat. Commun. 11, 1550 (2020)",10.1038/s41467-020-15355-0,False
 氟硫酸铁锂,LiFeSO4F,3.6,130,300,70,6,240,研究热点，不同报道差异中等,同行综述典型值,10,"Barpanda et al., Nat. Mater. 10, 772 (2011)",10.1038/nmat3093,True

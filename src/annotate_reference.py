@@ -18,6 +18,10 @@ v1.18.0 的溯源只是"规则分级"（厂商/综述/估算三档），并不�
 | 无序岩盐 DRX | Lee et al., *Science* **343**, 519 (2014) | `10.1126/science.1246432` |
 | 氟硫酸盐 tavorite/triplite | Barpanda et al., *Nat. Mater.* **10**, 772 (2011) | `10.1038/nmat3093` |
 | 正极总览综述 | Manthiram, *Nat. Commun.* **11**, 1550 (2020) | `10.1038/s41467-020-15355-0` |
+| 层状 NMC（x = 0.5 / 0.6 / 0.8 对比） | Noh, Youn, Yoon & Sun, *J. Power Sources* **233**, 121 (2013) | `10.1016/j.jpowsour.2013.01.063` |
+| 层状 LiMnO2 | Armstrong & Bruce, *Nature* **381**, 499 (1996) | `10.1038/381499a0` |
+| 硅酸铁锂 Li2FeSiO4 | Nytén et al., *Electrochem. Commun.* **7**, 156 (2005) | `10.1016/j.elecom.2004.11.008` |
+| 磷酸钒锂 Li3V2(PO4)3 | Huang, Yin, Kerr, Taylor & Nazar, *Adv. Mater.* **14**, 1525 (2002) | `10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3` |
 
 `citation_verified` 的含义是**"该文献是否直接覆盖该材料"**（不是"是否有引用"）：
 
@@ -62,6 +66,18 @@ THACKERAY2007 = ("Thackeray et al., J. Mater. Chem. 17, 3112 (2007)",
 OHZUKU1991 = ("Ohzuku et al., J. Electrochem. Soc. 138, 2207 (1991)"
               "（Crossref 收录为 ChemInform 摘要）", "10.1002/chin.199345021")
 REVIEW_ONLY = ("综述汇总（Manthiram 2020 等，未逐条核验原始文献）", "")
+# v1.25.0 新增：Crossref 实测核验的锚点（title / journal / year 逐项对得上）
+NOH2013 = ("Noh, Youn, Yoon & Sun, J. Power Sources 233, 121 (2013)"
+           "（NMC x = 0.5 / 0.6 / 0.8 对比）",
+           "10.1016/j.jpowsour.2013.01.063")
+ARMSTRONG1996 = ("Armstrong & Bruce, Nature 381, 499 (1996)",
+                 "10.1038/381499a0")
+NYTEN2005 = ("Nytén, Abouimrane, Armand, Gustafsson & Thomas,"
+             " Electrochem. Commun. 7, 156 (2005)",
+             "10.1016/j.elecom.2004.11.008")
+HUANG2002 = ("Huang, Yin, Kerr, Taylor & Nazar, Adv. Mater. 14, 1525 (2002)"
+             "（Li3V2(PO4)3 原创正极工作）",
+             "10.1002/1521-4095(20021104)14:21<1525::AID-ADMA1525>3.0.CO;2-3")
 
 # 材料 -> (引用, DOI, 是否核验)
 CITATIONS = {
@@ -73,14 +89,14 @@ CITATIONS = {
     "LiMn2O4": (THACKERAY, True),
     # NMC 家族：Ohzuku 2001 首次报道 LiNi1/3Mn1/3Co1/3O2
     "LiNi0.333Co0.333Mn0.334O2": (OHZUKU, True),
-    "LiNi0.5Co0.2Mn0.3O2": (OHZUKU, False),
-    "LiNi0.6Co0.2Mn0.2O2": (OHZUKU, False),
-    "LiNi0.8Co0.1Mn0.1O2": (OHZUKU, False),
+    "LiNi0.5Co0.2Mn0.3O2": (NOH2013, True),
+    "LiNi0.6Co0.2Mn0.2O2": (NOH2013, True),
+    "LiNi0.8Co0.1Mn0.1O2": (NOH2013, True),
     "LiNi0.9Co0.05Mn0.05O2": (OHZUKU, False),
     "LiNi0.4Co0.2Mn0.4O2": (OHZUKU, False),
     "LiNi0.4Co0.3Mn0.3O2": (OHZUKU, False),
     "LiNi0.8Co0.15Al0.05O2": (MANTHIRAM, False),
-    "LiMnO2": (MANTHIRAM, False),
+    "LiMnO2": (ARMSTRONG1996, True),
     "LiCrO2": (MANTHIRAM, False),
     "LiNi0.5Mn1.5O4": (MANTHIRAM, False),
     "LiCoMnO4": (MANTHIRAM, False),
@@ -89,8 +105,8 @@ CITATIONS = {
     "LiVPO4F": (MANTHIRAM, False),
     "Li2FePO4F": (MANTHIRAM, False),
     "LiFeP2O7": (MANTHIRAM, False),
-    "Li3V2(PO4)3": (MANTHIRAM, False),
-    "Li2FeSiO4": (MANTHIRAM, False),
+    "Li3V2(PO4)3": (HUANG2002, True),
+    "Li2FeSiO4": (NYTEN2005, True),
     "Li2MnSiO4": (MANTHIRAM, False),
     "Li2CoSiO4": (MANTHIRAM, False),
     "Li1.2Mn0.4Ti0.4O2": (LEE, True),
@@ -107,7 +123,8 @@ CITATIONS = {
 
 VERIFIED_DOIS = {PADHI[1], MIZUSHIMA[1], THACKERAY[1], OHZUKU[1], LEE[1],
                  BARPANDA[1], MANTHIRAM[1], WHITTINGHAM[1], THACKERAY2007[1],
-                 OHZUKU1991[1]}
+                 OHZUKU1991[1], NOH2013[1], ARMSTRONG1996[1], NYTEN2005[1],
+                 HUANG2002[1]}
 
 
 def main(argv=None) -> int:
