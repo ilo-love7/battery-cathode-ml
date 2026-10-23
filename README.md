@@ -214,6 +214,7 @@ D:\venvs\bcm-cgcnn\Scripts\python src/screening_struct.py
 | [battery-ecm-rul](https://github.com/ilo-love7/battery-ecm-rul) | Thevenin ECM identification (NASA PCoE) + early cycle-life prediction + PyBaMM |
 | [drift-diffusion-pn-junction](https://github.com/ilo-love7/drift-diffusion-pn-junction) | 1D drift–diffusion–Poisson solver with three-layer verification |
 | [car-following](https://github.com/ilo-love7/car-following) | Car-following traffic modelling toolkit (7 models) |
+| [project-packer](https://github.com/ilo-love7/project-packer) | Turning real project work into interview-defensible experience (fact dossier + question tree) |
 
 ## License and data credits
 
